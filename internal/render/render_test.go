@@ -88,6 +88,10 @@ func dictionary(pairs ...[2]string) map[string]any {
 	}
 }
 
+func wrappedVariable(inner map[string]any) map[string]any {
+	return map[string]any{"Type": "Variable", "Variable": inner}
+}
+
 func workflow(name string, actions ...any) *shortcuts.Workflow {
 	return &shortcuts.Workflow{
 		Shortcut: shortcuts.Shortcut{
@@ -317,6 +321,30 @@ func fixtures() []fixture {
 				"WFVariableName": "na\u200bme",
 				"WFInput":        attachment(variableRef("<b>bold</b>")),
 			}),
+		)},
+
+		{name: "wrapped-variable", workflow: workflow("Wrapped Variables",
+			action("is.workflow.actions.urlencode", map[string]any{
+				"UUID":    "0042BBC5-732B-4EDF-AC06-4E3714215F4B",
+				"WFInput": attachment(variableRef("Thing")),
+			}),
+			flowAction("is.workflow.actions.conditional", "E26F2EDF", 0, map[string]any{
+				"UUID":        "wrapped-if",
+				"WFCondition": uint64(100),
+				"WFInput": wrappedVariable(attachment(
+					actionOutput("0042BBC5-732B-4EDF-AC06-4E3714215F4B", "URL Encoded Text"))),
+			}),
+			action("is.workflow.actions.notification", map[string]any{
+				"UUID": "notify",
+				"WFNotificationActionBody": tokenStringWith("Input \"￼\" could not be encoded. ",
+					map[string]any{"{7, 1}": wrappedVariable(attachment(map[string]any{"Type": "ExtensionInput"}))}),
+			}),
+			action("is.workflow.actions.setvariable", map[string]any{
+				"UUID":           "deep",
+				"WFVariableName": "doubly wrapped",
+				"WFInput":        wrappedVariable(wrappedVariable(attachment(variableRef("Thing")))),
+			}),
+			flowAction("is.workflow.actions.conditional", "E26F2EDF", 2, map[string]any{"UUID": "wrapped-end"}),
 		)},
 	}
 }
@@ -618,6 +646,57 @@ func TestNilWorkflow(t *testing.T) {
 	}
 }
 
+func TestWrappedVariableIsUnwrapped(t *testing.T) {
+	w := fixtureNamed(t, "wrapped-variable")
+
+	page, err := WebReview(w)
+	if err != nil {
+		t.Fatalf("WebReview: %v", err)
+	}
+	for _, want := range []string{
+		`<span class="magic" data-target="0"><b>[0 URL Encoded Text]</b></span>`,
+		`<span class="var"><b>[Shortcut Input]</b></span>`,
+		`<span class="var"><b>[Thing]</b></span>`,
+	} {
+		if !strings.Contains(string(page), want) {
+			t.Errorf("page does not contain %q", want)
+		}
+	}
+	if strings.Contains(string(page), "<b>[]</b>") {
+		t.Error("a wrapped variable rendered as an empty reference")
+	}
+
+	readme, err := ShortcutREADME(w)
+	if err != nil {
+		t.Fatalf("ShortcutREADME: %v", err)
+	}
+	if !strings.Contains(string(readme), "`1` If [0 URL Encoded Text] has any value") {
+		t.Errorf("README outline lost the wrapped variable:\n%s", readme)
+	}
+}
+
+func TestMarkdownNeverShowsInvisibleEscapes(t *testing.T) {
+	for _, f := range fixtures() {
+		t.Run(f.name, func(t *testing.T) {
+			readme, err := ShortcutREADME(f.workflow)
+			if err != nil {
+				t.Fatalf("ShortcutREADME: %v", err)
+			}
+			if leaked := invisibleEscape.FindString(string(readme)); leaked != "" {
+				t.Errorf("README leaked the HTML escape form %q", leaked)
+			}
+		})
+	}
+
+	readme, err := ShortcutREADME(fixtureNamed(t, "wrapped-variable"))
+	if err != nil {
+		t.Fatalf("ShortcutREADME: %v", err)
+	}
+	if !strings.Contains(string(readme), `Show Notification Input "[Shortcut Input]" could not be encoded.`+"\n") {
+		t.Errorf("trailing whitespace should be trimmed, not escaped:\n%s", readme)
+	}
+}
+
 func fixtureNamed(t *testing.T, name string) *shortcuts.Workflow {
 	t.Helper()
 	for _, f := range fixtures() {
@@ -685,10 +764,11 @@ func itoa(n int) string {
 }
 
 var (
-	tagPattern    = regexp.MustCompile(`</?([a-zA-Z][a-zA-Z0-9]*)`)
-	scriptPattern = regexp.MustCompile(`(?s)<script>.*?</script>`)
-	stylePattern  = regexp.MustCompile(`(?s)<style>.*?</style>`)
-	voidTags      = map[string]bool{"br": true, "hr": true, "meta": true, "link": true, "img": true, "input": true}
+	invisibleEscape = regexp.MustCompile(`\\u(\{|[0-9A-F]{4})`)
+	tagPattern      = regexp.MustCompile(`</?([a-zA-Z][a-zA-Z0-9]*)`)
+	scriptPattern   = regexp.MustCompile(`(?s)<script>.*?</script>`)
+	stylePattern    = regexp.MustCompile(`(?s)<style>.*?</style>`)
+	voidTags        = map[string]bool{"br": true, "hr": true, "meta": true, "link": true, "img": true, "input": true}
 )
 
 func assertTagsBalanced(t *testing.T, page []byte) {

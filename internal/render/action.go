@@ -282,7 +282,7 @@ func fillSlots(name string, subs map[catalog.Slot][]node, defaults map[catalog.S
 }
 
 func summarize(nodes []node) string {
-	summary := strings.Join(strings.FieldsFunc(plainText(nodes), func(r rune) bool {
+	summary := strings.Join(strings.FieldsFunc(markdownText(nodes), func(r rune) bool {
 		return r == '\n' || r == '\t' || r == ' ' || r == '　'
 	}), " ")
 	if len([]rune(summary)) > summaryLimit {

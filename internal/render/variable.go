@@ -6,17 +6,38 @@ import (
 	"strings"
 )
 
+const maxVariableWrappers = 8
+
+func unwrapVariable(v any) any {
+	for depth := 0; depth < maxVariableWrappers; depth++ {
+		value, ok := v.(map[string]any)
+		if !ok {
+			return v
+		}
+		switch {
+		case stringOr(value, "WFSerializationType") == "WFTextTokenAttachment":
+			v = value["Value"]
+		case stringOr(value, "Type") == "Variable" && stringOr(value, "VariableName") == "":
+			nested, ok := value["Variable"]
+			if !ok {
+				return value
+			}
+			v = nested
+		default:
+			return value
+		}
+	}
+	return v
+}
+
 func (r *reviewer) variable(v any) []node {
-	value, ok := v.(map[string]any)
+	unwrapped := unwrapVariable(v)
+	value, ok := unwrapped.(map[string]any)
 	if !ok {
-		if s, ok := formatScalar(v); ok {
+		if s, ok := formatScalar(unwrapped); ok {
 			return []node{boxOf(visibleText(s))}
 		}
-		return r.value(v)
-	}
-
-	if stringOr(value, "WFSerializationType") == "WFTextTokenAttachment" {
-		return r.variable(value["Value"])
+		return r.value(unwrapped)
 	}
 
 	kind := stringOr(value, "Type")

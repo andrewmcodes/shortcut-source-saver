@@ -19,4 +19,4 @@ A backup of the **Hostile Text** shortcut. `shortcut.json` is the canonical, dif
 
 - `0` Comment
 - `1` Text
-- `2` Set Variable na\u200Bme to [<b>bold</b>]
+- `2` Set Variable name to [<b>bold</b>]

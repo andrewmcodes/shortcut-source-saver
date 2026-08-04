@@ -41,6 +41,8 @@ Invisible characters in shortcut text are a real debugging problem: a zero-width
 
 The separators the renderer itself emits (the `　` before `➔`, `»` and `▵`) are U+3000 and are written as plain text nodes, not passed through `visibleText` — otherwise the renderer would escape its own punctuation.
 
+This visualisation is **HTML-only**. In the README a `\u{space}` reads as corruption rather than as a hint, so the Markdown walker (`markdownText`) renders each escape node from the original character it stands for instead of from its label: whitespace-like characters become a plain space, which the summary's whitespace collapsing then trims away, and zero-width, bidi and control characters are dropped entirely. Each escape node therefore carries both its label and its `Raw` original, and the choice of which to use belongs to the output format, not to the escaping pass.
+
 ## Control flow nests as real DOM nesting
 
 `WFControlFlowMode` in an action's parameters says what a control-flow action does: `0` opens a block, `1` starts another branch of the open block (Otherwise, Otherwise If, a Menu Item), `2` closes it. Blocks are matched by `GroupingIdentifier`, not by position, and an action is only control flow at all if the catalog has more than one mode for its identifier (`catalog.Action.ControlFlow`).
@@ -75,7 +77,9 @@ In every case the header card grows a red `corrupted` link to the offending acti
 
 Before rendering anything, `newReviewer` builds `map[UUID]int` from every action's `WFWorkflowActionParameters.UUID` to that action's index. This has to happen first because a reference can point forwards (a `Repeat` body can consume an output produced later in the source order of a menu).
 
-A parameter value of `WFSerializationType: WFTextTokenAttachment` whose `Value.Type` is:
+A variable reaches the renderer in more than one shape, and the shapes nest: a parameter can hold `{"WFSerializationType": "WFTextTokenAttachment", "Value": {…}}`, or `{"Type": "Variable", "Variable": {…}}` wrapping one of those, and real shortcuts contain both — sometimes doubled. `unwrapVariable` peels those wrappers in a loop (attachment → `Value`; a `Variable`-typed map with no `VariableName` → `Variable`) up to a depth cap, so the rendering code only ever sees the innermost descriptor. Missing this unwrapping is silent: the variable renders as an empty `[]` rather than failing.
+
+Once unwrapped, a descriptor whose `Type` is:
 
 - `ActionOutput` renders as `[<producer index> <OutputName>]`, clickable: the page's script expands every collapsed ancestor of `#m<index>` and scrolls to it. The consumption is also recorded in reverse, so the producing action's own title gains `» 3 7` — the indices that use its output. That reverse list is what makes a long shortcut readable: you can see at a glance whether an action's output is used at all.
 - `ActionOutput` with an `OutputUUID` that is in no action renders flagged (`[? Name]` in red) rather than silently as text. A dangling output means the shortcut lost an action, and silence would hide it.
@@ -152,6 +156,6 @@ The site is returned as a map of relative path to bytes rather than written dire
 
 ## Tests
 
-`render_test.go` drives eight hand-built workflows through all three outputs and compares against golden files in `testdata/`; run `go test ./internal/render/ -update` to regenerate them, and read the diff as the review it is. The fixtures cover a linear shortcut (with a dictionary and a slot default), nested `If`/`Otherwise`/`End If` including the multi-condition and "is between" forms, a `Repeat` containing a `Menu` containing an `If` (which is what exercises all three depth cues), unbalanced blocks in all three broken shapes, a magic-variable chain with aggrandizements and a dangling output, a token string whose attachment offsets sort differently as numbers than as strings, uncatalogued Apple and third-party actions, and text made of `<script>`, quotes, zero-width, non-breaking and control characters.
+`render_test.go` drives eight hand-built workflows through all three outputs and compares against golden files in `testdata/`; run `go test ./internal/render/ -update` to regenerate them, and read the diff as the review it is. The fixtures cover a linear shortcut (with a dictionary and a slot default), nested `If`/`Otherwise`/`End If` including the multi-condition and "is between" forms, a `Repeat` containing a `Menu` containing an `If` (which is what exercises all three depth cues), unbalanced blocks in all three broken shapes, a magic-variable chain with aggrandizements and a dangling output, a token string whose attachment offsets sort differently as numbers than as strings, uncatalogued Apple and third-party actions, text made of `<script>`, quotes, zero-width, non-breaking and control characters, and variables buried in one and two layers of serialization wrapper.
 
-Beyond the goldens the tests assert what the goldens cannot: that every output is byte-identical across two runs, that every opened tag closes in LIFO order (a hand-rolled scan, to avoid taking a dependency on `golang.org/x/net/html`), that shortcut text cannot introduce a tag, that the token-string splice order follows the numeric offsets, and that `ExpandAll`, base URLs, relative links and slug collisions behave.
+Beyond the goldens the tests assert what the goldens cannot: that every output is byte-identical across two runs, that every opened tag closes in LIFO order (a hand-rolled scan, to avoid taking a dependency on `golang.org/x/net/html`), that shortcut text cannot introduce a tag, that no README contains an HTML-only `\u…` escape, that the token-string splice order follows the numeric offsets, and that `ExpandAll`, base URLs, relative links and slug collisions behave.

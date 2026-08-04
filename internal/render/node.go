@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 const (
@@ -20,6 +21,7 @@ const (
 type node struct {
 	Kind     string
 	Text     string
+	Raw      string
 	Target   int
 	Children []node
 }
@@ -67,7 +69,7 @@ func visibleText(s string) []node {
 		body, trailing := splitTrailingBlanks(line)
 		out = append(out, visibleLine(body)...)
 		for _, r := range trailing {
-			out = append(out, node{Kind: kindEscape, Text: blankName(r)})
+			out = append(out, node{Kind: kindEscape, Text: blankName(r), Raw: string(r)})
 		}
 	}
 	return out
@@ -100,7 +102,7 @@ func visibleLine(s string) []node {
 			out = append(out, text(buf.String()))
 			buf.Reset()
 		}
-		out = append(out, node{Kind: kindEscape, Text: fmt.Sprintf(`\u%04X`, r)})
+		out = append(out, node{Kind: kindEscape, Text: fmt.Sprintf(`\u%04X`, r), Raw: string(r)})
 	}
 	if buf.Len() > 0 {
 		out = append(out, text(buf.String()))
@@ -141,6 +143,36 @@ func writePlainText(b *strings.Builder, nodes []node) {
 			writePlainText(b, n.Children)
 		}
 	}
+}
+
+func markdownText(nodes []node) string {
+	var b strings.Builder
+	writeMarkdownText(&b, nodes)
+	return b.String()
+}
+
+func writeMarkdownText(b *strings.Builder, nodes []node) {
+	for _, n := range nodes {
+		switch n.Kind {
+		case kindText:
+			b.WriteString(n.Text)
+		case kindEscape:
+			b.WriteString(markdownBlank(n.Raw))
+		case kindBreak:
+			b.WriteString("\n")
+		default:
+			writeMarkdownText(b, n.Children)
+		}
+	}
+}
+
+func markdownBlank(raw string) string {
+	for _, r := range raw {
+		if unicode.IsSpace(r) {
+			return " "
+		}
+	}
+	return ""
 }
 
 func indentNodes(nodes []node, prefix string) []node {

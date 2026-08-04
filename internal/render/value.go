@@ -61,7 +61,7 @@ func (r *reviewer) list(items []any) []node {
 func (r *reviewer) mapping(m map[string]any) []node {
 	if kind, ok := stringAt(m, "Type"); ok {
 		if kind == "Variable" {
-			return r.variable(m["Variable"])
+			return r.variable(m)
 		}
 		return textNodes("?type?" + kind)
 	}
