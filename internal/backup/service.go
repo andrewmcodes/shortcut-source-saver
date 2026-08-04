@@ -42,6 +42,9 @@ type Service struct {
 
 	touched map[string]bool
 	names   map[string]bool
+
+	slugs    map[string]string
+	slugsErr error
 }
 
 func New(cfg *config.Config, lib *shortcuts.Library, opts Options) *Service {
@@ -71,8 +74,63 @@ func (s *Service) List() ([]shortcuts.Shortcut, error) {
 	return visible, nil
 }
 
-func (s *Service) ShortcutDir(name string) string {
-	return filepath.Join(s.cfg.RepoPath, ShortcutsDir, archive.Slug(name))
+const disambiguationLength = 8
+
+func ResolveSlugs(all []shortcuts.Shortcut) map[string]string {
+	groups := map[string][]shortcuts.Shortcut{}
+	for _, sc := range all {
+		base := archive.Slug(sc.Name)
+		groups[base] = append(groups[base], sc)
+	}
+
+	resolved := make(map[string]string, len(all))
+	for base, members := range groups {
+		if len(members) == 1 {
+			resolved[members[0].WorkflowID] = base
+			continue
+		}
+		for _, sc := range members {
+			resolved[sc.WorkflowID] = base + "-" + shortID(sc.WorkflowID)
+		}
+	}
+	return resolved
+}
+
+func shortID(workflowID string) string {
+	cleaned := strings.ToLower(strings.ReplaceAll(workflowID, "-", ""))
+	if cleaned == "" {
+		return "unknown"
+	}
+	if len(cleaned) > disambiguationLength {
+		return cleaned[:disambiguationLength]
+	}
+	return cleaned
+}
+
+func (s *Service) slugFor(sc shortcuts.Shortcut) (string, error) {
+	if s.slugs == nil && s.slugsErr == nil {
+		all, err := s.lib.List()
+		if err != nil {
+			s.slugsErr = err
+		} else {
+			s.slugs = ResolveSlugs(all)
+		}
+	}
+	if s.slugsErr != nil {
+		return "", s.slugsErr
+	}
+	if slug, ok := s.slugs[sc.WorkflowID]; ok {
+		return slug, nil
+	}
+	return archive.Slug(sc.Name), nil
+}
+
+func (s *Service) ShortcutDir(sc shortcuts.Shortcut) (string, error) {
+	slug, err := s.slugFor(sc)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(s.cfg.RepoPath, ShortcutsDir, slug), nil
 }
 
 func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result {
@@ -98,7 +156,12 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 		return result
 	}
 
-	dir := s.ShortcutDir(sc.Name)
+	dir, err := s.ShortcutDir(sc)
+	if err != nil {
+		result.Outcome = tui.OutcomeFailed
+		result.Err = err
+		return result
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		result.Outcome = tui.OutcomeFailed
 		result.Err = err
