@@ -125,8 +125,9 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 	s.track(metadataPath, sc.Name)
 
 	readme, err := render.ShortcutREADMEWithOptions(w, render.Options{
-		ExpandAll: s.opts.ExpandAll,
-		SiteURL:   s.cfg.BaseURL,
+		ExpandAll:    s.opts.ExpandAll,
+		SiteURL:      s.cfg.BaseURL,
+		ShortcutFile: signedFileName(sc.Name),
 	})
 	if err != nil {
 		result.Outcome = tui.OutcomeFailed
@@ -142,7 +143,7 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 	s.track(readmePath, sc.Name)
 
 	if s.cfg.IncludeSigned {
-		signedPath := filepath.Join(dir, sanitizeFileName(sc.Name)+".shortcut")
+		signedPath := filepath.Join(dir, signedFileName(sc.Name))
 		if err := archive.Sign(changed, workflow, signedPath, s.cfg.SignMode); err != nil {
 			result.Outcome = tui.OutcomeFailed
 			result.Err = err
@@ -346,6 +347,10 @@ func writeFileIfChanged(path string, contents []byte) error {
 		return err
 	}
 	return os.Rename(tmpName, path)
+}
+
+func signedFileName(name string) string {
+	return sanitizeFileName(name) + ".shortcut"
 }
 
 func sanitizeFileName(name string) string {

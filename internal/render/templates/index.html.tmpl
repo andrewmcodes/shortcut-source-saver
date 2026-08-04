@@ -1,0 +1,49 @@
+{{define "index"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="{{.Stylesheet}}">
+</head>
+<body>
+<h1>{{.Title}}</h1>
+<table class="shortcuts" id="shortcuts">
+<thead><tr><th>Name</th><th>Actions</th><th>Modified</th><th>Colour</th></tr></thead>
+<tbody>
+{{- range .Rows}}
+<tr><td><a href="{{.Href}}">{{.Name}}</a></td><td data-sort="{{.ActionCount}}">{{.ActionCount}}</td><td data-sort="{{.ModifiedSort}}">{{.Modified}}</td><td><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</td></tr>
+{{- end}}
+</tbody>
+</table>
+<script>
+for (const heading of document.querySelectorAll('#shortcuts th')) {
+	heading.addEventListener('click', function () {
+		const table = this.closest('table');
+		const body = table.tBodies[0];
+		const column = this.cellIndex;
+		const ascending = this.dataset.dir !== 'asc';
+		for (const other of table.querySelectorAll('th')) { delete other.dataset.dir; }
+		this.dataset.dir = ascending ? 'asc' : 'desc';
+		const key = function (row) {
+			const cell = row.cells[column];
+			return cell.dataset.sort !== undefined ? cell.dataset.sort : cell.textContent.trim().toLowerCase();
+		};
+		const rows = Array.from(body.rows).sort(function (a, b) {
+			const left = key(a), right = key(b);
+			const leftNumber = parseFloat(left), rightNumber = parseFloat(right);
+			let order;
+			if (!isNaN(leftNumber) && !isNaN(rightNumber)) {
+				order = leftNumber - rightNumber;
+			} else {
+				order = left < right ? -1 : left > right ? 1 : 0;
+			}
+			return ascending ? order : -order;
+		});
+		for (const row of rows) { body.appendChild(row); }
+	});
+}
+</script>
+</body>
+</html>
+{{end}}

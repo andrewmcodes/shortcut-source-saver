@@ -1,0 +1,46 @@
+{{define "review"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<meta name="format-detection" content="telephone=no,date=no">
+<title>{{.Title}}</title>
+{{if .Stylesheet}}<link rel="stylesheet" href="{{.Stylesheet}}">{{else}}<style>
+{{.InlineCSS}}</style>{{end}}
+</head>
+<body>
+{{- with .Home}}
+<p class="nav"><a href="{{.}}">&#8592; All shortcuts</a></p>
+{{- end}}
+{{template "header" .Header}}
+{{- template "items" .Items}}
+<script>
+for (const button of document.getElementsByClassName('button')) {
+	button.addEventListener('click', function () {
+		this.classList.toggle('closed');
+		const content = this.nextElementSibling;
+		content.style.display = getComputedStyle(content).display === 'none' ? 'block' : 'none';
+	});
+}
+
+for (const link of document.getElementsByClassName('magic')) {
+	link.addEventListener('click', function (event) {
+		event.stopPropagation();
+		reveal(this.dataset.target);
+	});
+}
+
+function reveal(index) {
+	const target = document.getElementById('m' + index);
+	if (!target) { return; }
+	let parent = target;
+	while ((parent = parent.parentNode).tagName.toLowerCase() === 'div') {
+		parent.style.display = 'block';
+		parent.previousElementSibling.classList.remove('closed');
+	}
+	setTimeout(function () { target.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, 10);
+}
+</script>
+</body>
+</html>
+{{end}}

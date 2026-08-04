@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>My Shortcuts</title>
+<link rel="stylesheet" href="/shortcut-source-saver/assets/style.css">
+</head>
+<body>
+<h1>My Shortcuts</h1>
+<table class="shortcuts" id="shortcuts">
+<thead><tr><th>Name</th><th>Actions</th><th>Modified</th><th>Colour</th></tr></thead>
+<tbody>
+<tr><td><a href="/shortcut-source-saver/shortcuts/linear-shortcut.html">Linear Shortcut</a></td><td data-sort="5">5</td><td data-sort="2025-06-14T17:05:00Z">2025-06-14 17:05 UTC</td><td><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</td></tr>
+<tr><td><a href="/shortcut-source-saver/shortcuts/nested-if.html">Nested If</a></td><td data-sort="8">8</td><td data-sort="2025-06-14T17:05:00Z">2025-06-14 17:05 UTC</td><td><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</td></tr>
+<tr><td><a href="/shortcut-source-saver/shortcuts/repeat-with-menu.html">Repeat With Menu</a></td><td data-sort="10">10</td><td data-sort="2025-06-14T17:05:00Z">2025-06-14 17:05 UTC</td><td><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</td></tr>
+</tbody>
+</table>
+<script>
+for (const heading of document.querySelectorAll('#shortcuts th')) {
+	heading.addEventListener('click', function () {
+		const table = this.closest('table');
+		const body = table.tBodies[0];
+		const column = this.cellIndex;
+		const ascending = this.dataset.dir !== 'asc';
+		for (const other of table.querySelectorAll('th')) { delete other.dataset.dir; }
+		this.dataset.dir = ascending ? 'asc' : 'desc';
+		const key = function (row) {
+			const cell = row.cells[column];
+			return cell.dataset.sort !== undefined ? cell.dataset.sort : cell.textContent.trim().toLowerCase();
+		};
+		const rows = Array.from(body.rows).sort(function (a, b) {
+			const left = key(a), right = key(b);
+			const leftNumber = parseFloat(left), rightNumber = parseFloat(right);
+			let order;
+			if (!isNaN(leftNumber) && !isNaN(rightNumber)) {
+				order = leftNumber - rightNumber;
+			} else {
+				order = left < right ? -1 : left > right ? 1 : 0;
+			}
+			return ascending ? order : -order;
+		});
+		for (const row of rows) { body.appendChild(row); }
+	});
+}
+</script>
+</body>
+</html>

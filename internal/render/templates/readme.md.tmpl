@@ -1,0 +1,40 @@
+{{define "readme"}}# {{.Name}}
+
+A backup of the **{{.Name}}** shortcut. `shortcut.json` is the canonical, diffable source; `{{.ShortcutFile}}` is the signed binary that the Shortcuts app can import.
+
+| | |
+| --- | --- |
+| Actions | {{.ActionCount}} |
+{{- with .Created}}
+| Created | {{.}} |
+{{- end}}
+{{- with .Modified}}
+| Modified | {{.}} |
+{{- end}}
+| Icon | `{{.Color}}` (glyph {{.Glyph}}) |
+{{- with .MinimumOS}}
+| Minimum iOS | {{.}} |
+{{- end}}
+{{- with .ClientVersion}}
+| Client version | {{.}} |
+{{- end}}
+{{- with .MinimumClientVersion}}
+| Minimum client version | {{.}} |
+{{- end}}
+{{- with .WorkflowTypes}}
+| Workflow types | {{.}} |
+{{- end}}
+
+[Import the shortcut]({{.ShortcutHref}}) · [Open the web review]({{.ReviewLink}})
+{{if .Corrupted}}
+> [!WARNING]
+> The control flow in this shortcut does not balance: action {{.CorruptedAt}} opens or closes a block that has no counterpart. The web review flags it.
+{{end}}
+## Actions
+{{if .Outline}}
+{{range .Outline}}{{.Indent}}- `{{.Index}}` {{.Summary}}{{if .Corrupted}} — **corrupted block**{{end}}
+{{end}}
+{{- else}}
+This shortcut has no actions.
+{{end}}
+{{- end}}

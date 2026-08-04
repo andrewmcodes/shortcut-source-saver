@@ -1,0 +1,48 @@
+{{define "nodes"}}{{range .}}{{template "node" .}}{{end}}{{end}}
+
+{{define "node"}}
+{{- if eq .Kind "text"}}{{.Text}}
+{{- else if eq .Kind "escape"}}<b>{{.Text}}</b>
+{{- else if eq .Kind "break"}}<br>
+{{- else if eq .Kind "box"}}<span class="box">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "var"}}<span class="var">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "magic"}}<span class="magic" data-target="{{.Target}}">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "flag"}}<span class="flagged">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "bold"}}<b>{{template "nodes" .Children}}</b>
+{{- else if eq .Kind "italic"}}<i>{{template "nodes" .Children}}</i>
+{{- end}}
+{{- end}}
+
+{{define "row"}}
+{{- if .Full}}
+<div class="col2">{{template "nodes" .Value}}</div>
+{{- else}}
+<div class="row"><div class="col1">{{.Label}}</div><div class="col2">{{template "nodes" .Value}}</div></div>
+{{- end}}
+{{- end}}
+
+{{define "items"}}
+{{- range .}}
+{{- template "item" .}}
+{{- end}}
+{{- end}}
+
+{{define "item"}}
+<button class="{{.ButtonClass}}" id="m{{.Index}}">{{template "nodes" .Label}}</button>
+{{- if .Container}}<div class="{{.ContentClass}}"{{if .Collapsed}} style="display:none"{{end}}>
+{{- range .Rows}}{{template "row" .}}{{end}}
+{{- template "items" .Children}}
+</div>
+{{- end}}
+{{- end}}
+
+{{define "header"}}
+<button class="button gParams" id="mheader"><b>{{.Name}}</b> ({{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}{{with .MinimumOS}}, iOS {{.}}{{end}}){{if .Corrupted}} <span class="magic flagged" data-target="{{.CorruptedAt}}">corrupted</span>{{end}}</button><div class="content">
+<div class="row"><div class="col1">Colour</div><div class="col2"><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</div></div>
+{{- range .Rows}}
+{{- if .Text}}
+<div class="row"><div class="col1">{{.Label}}</div><div class="col2">{{.Text}}</div></div>
+{{- end}}
+{{- end}}
+</div>
+{{- end}}

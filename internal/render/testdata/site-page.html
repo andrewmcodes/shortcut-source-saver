@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<meta name="format-detection" content="telephone=no,date=no">
+<title>Linear Shortcut</title>
+<link rel="stylesheet" href="/shortcut-source-saver/assets/style.css">
+</head>
+<body>
+<p class="nav"><a href="/shortcut-source-saver/index.html">&#8592; All shortcuts</a></p>
+
+<button class="button gParams" id="mheader"><b>Linear Shortcut</b> (5 actions, iOS 18)</button><div class="content">
+<div class="row"><div class="col1">Colour</div><div class="col2"><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</div></div>
+<div class="row"><div class="col1">Identifier</div><div class="col2">11111111-2222-3333-4444-555555555555</div></div>
+<div class="row"><div class="col1">Created</div><div class="col2">2025-03-01 09:30 UTC</div></div>
+<div class="row"><div class="col1">Modified</div><div class="col2">2025-06-14 17:05 UTC</div></div>
+<div class="row"><div class="col1">Icon</div><div class="col2">#4F9BFF, glyph 59511</div></div>
+<div class="row"><div class="col1">Client version</div><div class="col2">3216</div></div>
+<div class="row"><div class="col1">Minimum client version</div><div class="col2">3010</div></div>
+<div class="row"><div class="col1">Workflow types</div><div class="col2">ActionExtension, NCWidget, WFWorkflowTypeShowInSearch</div></div>
+</div>
+<button class="button gYellow" id="m0">0 Text　» <span class="magic" data-target="1">1</span></button><div class="content">
+<div class="col2">Hello, world &amp; &lt;friends&gt;</div>
+</div>
+<button class="gOrange" id="m1">1 Set Variable <span class="box">greeting</span> to <span class="box"><span class="magic" data-target="0"><b>[0 Text]</b></span></span></button>
+<button class="button gOrange" id="m2">2 Dictionary</button><div class="content">
+<div class="col2">{
+   &#34;name&#34;: Ada,
+   &#34;role&#34;: engineer
+}</div>
+</div>
+<button class="gGray" id="m3">3 Wait 1 seconds</button>
+<button class="button gYellow" id="m4">4 Show Content<b>　➔ Result</b></button><div class="content">
+<div class="col2">Greeting: <span class="var"><b>[greeting]</b></span></div>
+</div>
+<script>
+for (const button of document.getElementsByClassName('button')) {
+	button.addEventListener('click', function () {
+		this.classList.toggle('closed');
+		const content = this.nextElementSibling;
+		content.style.display = getComputedStyle(content).display === 'none' ? 'block' : 'none';
+	});
+}
+
+for (const link of document.getElementsByClassName('magic')) {
+	link.addEventListener('click', function (event) {
+		event.stopPropagation();
+		reveal(this.dataset.target);
+	});
+}
+
+function reveal(index) {
+	const target = document.getElementById('m' + index);
+	if (!target) { return; }
+	let parent = target;
+	while ((parent = parent.parentNode).tagName.toLowerCase() === 'div') {
+		parent.style.display = 'block';
+		parent.previousElementSibling.classList.remove('closed');
+	}
+	setTimeout(function () { target.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, 10);
+}
+</script>
+</body>
+</html>
