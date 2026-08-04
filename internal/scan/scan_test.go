@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"howett.net/plist"
 	"strings"
 	"testing"
 )
@@ -381,5 +382,61 @@ func TestScanValue(t *testing.T) {
 	}
 	if findings[0].Path != "[0].DefaultValue" {
 		t.Errorf("Path = %q, want [0].DefaultValue", findings[0].Path)
+	}
+}
+
+func TestScanFindsSecretsInsidePlistDataValues(t *testing.T) {
+	actions := []any{map[string]any{
+		"WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+		"WFWorkflowActionParameters": map[string]any{
+			"WFTextActionText": []byte("Authorization: Bearer AbCdEf0123456789XyZwVuTsRqPoNmLkJiHgFe"),
+		},
+	}}
+
+	findings := Scan(actions)
+	if len(findings) == 0 {
+		t.Fatal("a secret stored in a plist <data> value was not found")
+	}
+	for _, f := range findings {
+		if strings.Contains(f.Excerpt, "XyZwVuTsRqPoNmLkJiHgFe") {
+			t.Errorf("excerpt leaked the secret: %q", f.Excerpt)
+		}
+	}
+}
+
+func TestScanDescendsIntoNestedBinaryPlists(t *testing.T) {
+	nested, err := plist.Marshal(map[string]any{
+		"apiKey": "sk-proj-AbCdEf0123456789XyZwVuTsRqPoNmLkJi",
+	}, plist.BinaryFormat)
+	if err != nil {
+		t.Fatalf("building the nested plist: %v", err)
+	}
+
+	actions := []any{map[string]any{
+		"WFWorkflowActionIdentifier": "com.apple.SomeIntent",
+		"WFWorkflowActionParameters": map[string]any{
+			"AppIntentDescriptor": nested,
+		},
+	}}
+
+	findings := Scan(actions)
+	if len(findings) == 0 {
+		t.Fatal("a secret inside a nested binary plist was not found")
+	}
+	t.Logf("found %d finding(s), first at %s", len(findings), findings[0].Path)
+}
+
+func TestScanIgnoresBinaryDataThatIsNotText(t *testing.T) {
+	blob := make([]byte, 256)
+	for i := range blob {
+		blob[i] = byte(i)
+	}
+	actions := []any{map[string]any{
+		"WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+		"WFWorkflowActionParameters": map[string]any{"WFImage": blob},
+	}}
+
+	if findings := Scan(actions); len(findings) != 0 {
+		t.Errorf("binary data produced %d finding(s): %v", len(findings), findings)
 	}
 }

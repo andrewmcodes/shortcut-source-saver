@@ -1,12 +1,16 @@
 package scan
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
+
+	"howett.net/plist"
 )
 
 const (
@@ -292,6 +296,8 @@ func walk(value any, path, context string, visit func(path, context, value strin
 		if v != "" {
 			visit(path, context, v)
 		}
+	case []byte:
+		walkData(v, path, context, visit)
 	case map[string]any:
 		walkMap(v, path, context, visit)
 	case map[any]any:
@@ -309,6 +315,76 @@ func walk(value any, path, context string, visit func(path, context, value strin
 			walk(item, fmt.Sprintf("%s[%d]", path, i), context, visit)
 		}
 	}
+}
+
+const (
+	maxNestedPlistDepth = 4
+	dataPathSuffix      = "<data>"
+)
+
+var binaryPlistMagic = []byte("bplist00")
+
+func walkData(data []byte, path, context string, visit func(path, context, value string)) {
+	walkDataDepth(data, path, context, visit, 0)
+}
+
+func walkDataDepth(data []byte, path, context string, visit func(path, context, value string), depth int) {
+	if len(data) == 0 {
+		return
+	}
+
+	if bytes.HasPrefix(data, binaryPlistMagic) && depth < maxNestedPlistDepth {
+		var nested any
+		if _, err := plist.Unmarshal(data, &nested); err == nil {
+			walkNested(nested, joinPath(path, dataPathSuffix), context, visit, depth+1)
+			return
+		}
+	}
+
+	if utf8.Valid(data) {
+		if text := strings.TrimSpace(string(data)); text != "" && isMostlyPrintable(text) {
+			visit(path, context, text)
+		}
+	}
+}
+
+func walkNested(value any, path, context string, visit func(path, context, value string), depth int) {
+	switch v := value.(type) {
+	case []byte:
+		walkDataDepth(v, path, context, visit, depth)
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			child := k
+			if wrapperKeys[k] && context != "" {
+				child = context
+			}
+			walkNested(v[k], joinPath(path, k), child, visit, depth)
+		}
+	case []any:
+		for i, item := range v {
+			walkNested(item, fmt.Sprintf("%s[%d]", path, i), context, visit, depth)
+		}
+	case string:
+		if v != "" {
+			visit(path, context, v)
+		}
+	}
+}
+
+func isMostlyPrintable(s string) bool {
+	printable, total := 0, 0
+	for _, r := range s {
+		total++
+		if unicode.IsPrint(r) || r == '\n' || r == '\t' || r == '\r' {
+			printable++
+		}
+	}
+	return total > 0 && printable*4 >= total*3
 }
 
 func walkMap(m map[string]any, path, context string, visit func(path, context, value string)) {
