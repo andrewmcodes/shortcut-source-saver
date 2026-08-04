@@ -6,9 +6,6 @@ import (
 	"howett.net/plist"
 )
 
-// decodePlistArray decodes one of the binary-plist blobs the Shortcuts database stores in
-// place of a plist array. Empty and NULL columns decode to an empty slice so that callers
-// can write them straight back out as `[]`.
 func decodePlistArray(data []byte) ([]any, error) {
 	if len(data) == 0 {
 		return []any{}, nil

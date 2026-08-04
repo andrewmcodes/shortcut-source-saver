@@ -1,1 +1,2 @@
 - Commit often using conventional commit messages
+- Don't add code comments, instead write documentation in the README and other documents in the `.ai/` folder or `docs/` folder
