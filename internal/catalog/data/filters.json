@@ -1,0 +1,73 @@
+{
+  "Album": {
+    "type": "Enumeration",
+    "default": "Recents"
+  },
+  "Calendar": {
+    "type": "Enumeration"
+  },
+  "Duration": {
+    "type": "Number",
+    "unit": "Unit"
+  },
+  "Email Addresses": {
+    "type": "Email"
+  },
+  "File Size": {
+    "type": "Number",
+    "unit": "ByteCountUnit"
+  },
+  "Folder": {
+    "type": "Enumeration"
+  },
+  "Group": {
+    "type": "Enumeration"
+  },
+  "Label": {
+    "type": "Enumeration"
+  },
+  "List": {
+    "type": "Enumeration"
+  },
+  "Media Kind": {
+    "type": "Enumeration",
+    "default": "Movie"
+  },
+  "Media Type": {
+    "type": "Enumeration",
+    "default": "Image"
+  },
+  "Orientation": {
+    "type": "Enumeration",
+    "default": "Up"
+  },
+  "Phone Number": {
+    "type": "Phone"
+  },
+  "Phone Numbers": {
+    "type": "Phone"
+  },
+  "Photo Type": {
+    "type": "Enumeration",
+    "default": "HDR"
+  },
+  "Priority": {
+    "type": "Enumeration",
+    "default": "None"
+  },
+  "Role": {
+    "type": "Enumeration",
+    "default": "Unknown"
+  },
+  "Source": {
+    "type": "Enumeration"
+  },
+  "Status": {
+    "type": "Enumeration",
+    "default": "Accepted"
+  },
+  "Type": {
+    "type": "Enumeration",
+    "default": "Step"
+  }
+}

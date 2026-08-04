@@ -1,0 +1,34 @@
+[tools]
+go = "1.23"
+node = "24"
+
+[env]
+CGO_ENABLED = "0"
+
+[tasks.build]
+description = "Build the sss binary into bin/"
+run = "go build -trimpath -o bin/sss ./cmd/sss"
+
+[tasks.test]
+description = "Run the test suite"
+run = "go test ./..."
+
+[tasks.fmt]
+description = "Format Go sources"
+run = "go fmt ./..."
+
+[tasks.vet]
+description = "Run go vet"
+run = "go vet ./..."
+
+[tasks.check]
+description = "Format, vet, and test"
+depends = ["fmt", "vet", "test"]
+
+[tasks.extract-catalog]
+description = "Regenerate the action catalog from the reference shortcut JSON"
+run = "node scripts/extract-catalog.mjs"
+
+[tasks.run]
+description = "Build and run the TUI"
+run = "go run ./cmd/sss"

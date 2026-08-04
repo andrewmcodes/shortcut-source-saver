@@ -1,0 +1,21 @@
+{
+  "Unit": {
+    "4": "years",
+    "8": "months",
+    "16": "days",
+    "32": "hours",
+    "64": "minutes",
+    "128": "seconds",
+    "8192": "weeks"
+  },
+  "ByteCountUnit": {
+    "1": "bytes",
+    "2": "KB",
+    "4": "MB",
+    "8": "GB",
+    "16": "TB",
+    "32": "PB",
+    "64": "EB",
+    "128": "ZB"
+  }
+}

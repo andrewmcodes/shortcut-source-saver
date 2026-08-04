@@ -1,0 +1,14 @@
+# Agent working notes (kept local, per .ai/PROJECT.md)
+.ai/
+
+# Build output
+/bin/
+/dist/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# macOS
+.DS_Store

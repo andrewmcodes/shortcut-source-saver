@@ -1,0 +1,19 @@
+{
+  "0": "&lt;",
+  "1": "&lt;=",
+  "2": "&gt;",
+  "3": "&gt;=",
+  "4": "is",
+  "5": "is not",
+  "8": "begins with",
+  "9": "ends with",
+  "99": "contains",
+  "100": "has any value",
+  "101": "does not have any value",
+  "999": "does not contain",
+  "1000": "is in the next",
+  "1001": "is in the last",
+  "1002": "is today",
+  "1003": "is between",
+  "": ""
+}
