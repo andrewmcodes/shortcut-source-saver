@@ -130,7 +130,8 @@ func (c *Config) resolve() error {
 		c.SiteDir = site
 	}
 
-	return c.Validate()
+	c.BaseURL = normalizeBaseURL(c.BaseURL)
+	return nil
 }
 
 func ExpandTilde(path string) (string, error) {

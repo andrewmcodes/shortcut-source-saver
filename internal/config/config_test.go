@@ -65,9 +65,12 @@ func TestLoadDefaults(t *testing.T) {
 		t.Skip("machine-wide config installed; cannot test the no-file case")
 	}
 
-	_, err := Load("")
-	if !errors.Is(err, ErrMissingRepoPath) {
-		t.Fatalf("Load() error = %v, want ErrMissingRepoPath", err)
+	bare, err := Load("")
+	if err != nil {
+		t.Fatalf("Load() with no config file error = %v, want defaults so that --repo can still supply repo_path", err)
+	}
+	if err := bare.Validate(); !errors.Is(err, ErrMissingRepoPath) {
+		t.Fatalf("Validate() error = %v, want ErrMissingRepoPath", err)
 	}
 
 	_, xdg := isolate(t)
@@ -268,17 +271,20 @@ func TestLoadFile(t *testing.T) {
 			path := writeConfig(t, filepath.Join(t.TempDir(), FileName), tt.body)
 
 			cfg, err := Load(path)
+			if err == nil {
+				err = cfg.Validate()
+			}
 			if tt.wantErr != "" {
 				if err == nil {
-					t.Fatalf("Load() = %+v, want error containing %q", cfg, tt.wantErr)
+					t.Fatalf("Load()+Validate() = %+v, want error containing %q", cfg, tt.wantErr)
 				}
 				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("Load() error = %q, want it to contain %q", err, tt.wantErr)
+					t.Fatalf("Load()+Validate() error = %q, want it to contain %q", err, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("Load() error = %v", err)
+				t.Fatalf("Load()+Validate() error = %v", err)
 			}
 			tt.check(t, cfg)
 		})
