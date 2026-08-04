@@ -1,5 +1,5 @@
 [tools]
-go = "1.23"
+go = "1.25"
 node = "24"
 
 [env]
@@ -11,15 +11,15 @@ run = "go build -trimpath -o bin/sss ./cmd/sss"
 
 [tasks.test]
 description = "Run the test suite"
-run = "go test ./..."
+run = "go test ./cmd/... ./internal/..."
 
 [tasks.fmt]
 description = "Format Go sources"
-run = "go fmt ./..."
+run = "go fmt ./cmd/... ./internal/..."
 
 [tasks.vet]
 description = "Run go vet"
-run = "go vet ./..."
+run = "go vet ./cmd/... ./internal/..."
 
 [tasks.check]
 description = "Format, vet, and test"

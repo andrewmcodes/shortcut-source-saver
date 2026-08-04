@@ -1,6 +1,11 @@
 # Agent working notes (kept local, per .ai/PROJECT.md)
 .ai/
 
+# Locally installed agent skill packs
+/agent/
+/.agents/
+/.claude/
+
 # Build output
 /bin/
 /dist/

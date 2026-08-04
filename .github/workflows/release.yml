@@ -22,7 +22,7 @@ jobs:
           cache: true
 
       - name: Test
-        run: go test -count=1 ./...
+        run: go test -count=1 ./cmd/... ./internal/...
 
       - name: Build release binaries
         env:
