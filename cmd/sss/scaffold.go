@@ -1,12 +1,46 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/backup"
 	"github.com/andrewmcodes/shortcut-source-saver/internal/config"
+	"github.com/andrewmcodes/shortcut-source-saver/internal/gitrepo"
 )
+
+func siteChanges(ctx context.Context, repo *gitrepo.Repo, sitePath string) ([]string, error) {
+	statuses, err := repo.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	prefix, err := filepath.Rel(repo.Root(), sitePath)
+	if err != nil || strings.HasPrefix(prefix, "..") {
+		return nil, fmt.Errorf("site_dir %s is outside the repository at %s", sitePath, repo.Root())
+	}
+	prefix = filepath.ToSlash(prefix)
+
+	var changed []string
+	for _, status := range statuses {
+		path := filepath.ToSlash(status.Path)
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			changed = append(changed, path)
+		}
+	}
+	sort.Strings(changed)
+	if len(changed) > maxReportedSiteChanges {
+		changed = append(changed[:maxReportedSiteChanges],
+			fmt.Sprintf("and %d more", len(changed)-maxReportedSiteChanges))
+	}
+	return changed, nil
+}
+
+const maxReportedSiteChanges = 5
 
 func newSiteOnlyService(cfg *config.Config, flags *globalFlags) *backup.Service {
 	return backup.New(cfg, nil, backup.Options{

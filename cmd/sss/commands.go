@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -150,12 +151,13 @@ func newBuildCommand(flags *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			clean, err := repo.IsClean(cmd.Context())
+			stale, err := siteChanges(cmd.Context(), repo, cfg.SitePath())
 			if err != nil {
 				return err
 			}
-			if !clean {
-				return fmt.Errorf("the generated site is out of date; run `sss build` and commit the result")
+			if len(stale) > 0 {
+				return fmt.Errorf("the generated site is out of date (%s); run `sss build` and commit the result",
+					strings.Join(stale, ", "))
 			}
 			return nil
 		},
