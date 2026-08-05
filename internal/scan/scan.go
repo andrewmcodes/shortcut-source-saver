@@ -2,6 +2,8 @@ package scan
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"regexp"
@@ -21,17 +23,27 @@ const (
 const (
 	minGenericEntropy = 3.2
 	minGenericLength  = 16
-	redactPrefix      = 6
 	wordSeparators    = "_-./ "
 )
 
-var placeholderMarkers = []string{
-	"your_", "your-", "yourapi", "yourtoken", "youraccess", "your api", "your token",
-	"example", "changeme", "change_me", "placeholder", "dummy", "sample", "insert",
-	"redacted", "removed", "todo", "fixme", "fake", "notreal", "abc123", "foobar",
-	"<", ">", "…", "***", "api_key_here", "key_here", "token_here", "secret_here",
-	"xxxx", "0000", "1234567890", "test_test",
+var placeholderPhrases = []string{
+	"your_", "your-", "your ", "yourapi", "yourtoken", "yoursecret", "youraccess",
+	"_here", "-here", " here", "goeshere",
+	"changeme", "change_me", "change-me", "placeholder", "notreal", "not_real",
+	"replace_me", "replaceme", "replacethis", "insert_your", "putyour", "put_your",
+	"xxxxxxxx", "########", "........", "<", ">", "…", "***",
 }
+
+var placeholderWords = []string{
+	"example", "dummy", "sample", "insert", "redacted", "removed", "todo", "fixme",
+	"fake", "test", "testing", "abc123", "foobar", "foo", "bar", "baz", "none",
+	"null", "nil", "empty", "unset", "default", "secret", "password", "token",
+	"apikey", "key",
+}
+
+const placeholderWordCoverage = 0.6
+
+var separatorTrimmer = strings.NewReplacer("_", "", "-", "", ".", "", "/", "", " ", "", "+", "", "~", "")
 
 type Finding struct {
 	ActionIndex int
@@ -221,10 +233,15 @@ func plausibleSecret(secret string, rule Rule) bool {
 
 func isPlaceholder(secret string) bool {
 	lower := strings.ToLower(secret)
-	for _, marker := range placeholderMarkers {
-		if strings.Contains(lower, marker) {
+
+	for _, phrase := range placeholderPhrases {
+		if strings.Contains(lower, phrase) {
 			return true
 		}
+	}
+
+	if isPlaceholderWordSequence(lower) {
+		return true
 	}
 
 	distinct := make(map[rune]struct{}, len(secret))
@@ -232,6 +249,26 @@ func isPlaceholder(secret string) bool {
 		distinct[r] = struct{}{}
 	}
 	return len(distinct) <= 2
+}
+
+func isPlaceholderWordSequence(lower string) bool {
+	stripped := separatorTrimmer.Replace(lower)
+	if stripped == "" {
+		return true
+	}
+
+	matched := 0
+	for _, word := range placeholderWords {
+		for offset := 0; ; {
+			at := strings.Index(stripped[offset:], word)
+			if at < 0 {
+				break
+			}
+			matched += len(word)
+			offset += at + len(word)
+		}
+	}
+	return float64(matched) >= placeholderWordCoverage*float64(len(stripped))
 }
 
 func looksLikeWords(secret string) bool {
@@ -272,13 +309,29 @@ func Entropy(s string) float64 {
 	return bits
 }
 
+var publicSecretPrefixes = []string{
+	"sk-ant-", "sk-proj-", "sk-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
+	"AKIA", "ASIA", "AIza", "xoxb-", "xoxa-", "xoxp-", "xoxr-", "xoxs-", "eyJ",
+	"-----BEGIN",
+}
+
 func Redact(secret string) string {
 	flat := strings.Join(strings.Fields(secret), " ")
-	runes := []rune(flat)
-	if len(runes) <= redactPrefix {
-		return strings.Repeat("*", len(runes)) + fmt.Sprintf(" (%d chars)", len(runes))
+	length := len([]rune(flat))
+
+	label := "******"
+	for _, prefix := range publicSecretPrefixes {
+		if strings.HasPrefix(flat, prefix) {
+			label = prefix + "******"
+			break
+		}
 	}
-	return string(runes[:redactPrefix]) + "******" + fmt.Sprintf(" (%d chars)", len(runes))
+	return fmt.Sprintf("%s (%d chars, %s)", label, length, fingerprint(flat))
+}
+
+func fingerprint(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return "sha256:" + hex.EncodeToString(sum[:])[:8]
 }
 
 var wrapperKeys = map[string]bool{

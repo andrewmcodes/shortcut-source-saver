@@ -107,10 +107,22 @@ func canonicalizeByKind(v any) any {
 	case reflect.String:
 		return rv.String()
 	case reflect.Struct:
-		return v
+		return canonicalizeStruct(v)
 	default:
 		return fmt.Sprint(v)
 	}
+}
+
+func canonicalizeStruct(v any) any {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+	var decoded any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return fmt.Sprint(v)
+	}
+	return decoded
 }
 
 func taggedData(b []byte) map[string]any {

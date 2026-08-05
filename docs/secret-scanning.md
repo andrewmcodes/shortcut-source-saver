@@ -87,7 +87,10 @@ Every rule, including the vendor ones, skips values that are documentation fille
 
 Two checks, applied case-insensitively to the candidate value:
 
-- **Substring markers**: `your_`, `your-`, `yourapi`, `yourtoken`, `youraccess`, `your api`, `your token`, `example`, `changeme`, `change_me`, `placeholder`, `dummy`, `sample`, `insert`, `redacted`, `removed`, `todo`, `fixme`, `fake`, `notreal`, `abc123`, `foobar`, `<`, `>`, `…`, `***`, `api_key_here`, `key_here`, `token_here`, `secret_here`, `xxxx`, `0000`, `1234567890`, `test_test`.
+- **Phrase markers** (matched anywhere): `your_`, `your-`, `your `, `yourapi`, `yourtoken`, `yoursecret`, `youraccess`, `_here`, `-here`, ` here`, `goeshere`, `changeme`, `change_me`, `change-me`, `placeholder`, `notreal`, `not_real`, `replace_me`, `replaceme`, `replacethis`, `insert_your`, `putyour`, `put_your`, `xxxxxxxx`, `########`, `........`, `<`, `>`, `…`, `***`. These are long enough, or structurally odd enough, that a real key containing one is implausible.
+- **Word markers** (must *dominate* the value): `example`, `dummy`, `sample`, `insert`, `redacted`, `removed`, `todo`, `fixme`, `fake`, `test`, `testing`, `abc123`, `foobar`, `foo`, `bar`, `baz`, `none`, `null`, `nil`, `empty`, `unset`, `default`, `secret`, `password`, `token`, `apikey`, `key`. Separators are stripped and the matched words must cover at least 60% of what remains, so `test_test_test_test` is a placeholder while `sk-proj-testXyZwVuTsRqPoNmLkJiHgFeDcBa` is not.
+
+Splitting the list in two fixes a real false negative. Previously every marker was matched as a bare substring against the whole value, so a genuine key that merely *contained* `0000`, `abc123`, `foobar`, `test` or `example` anywhere in its random body was silently discarded — a false negative in a security guard, which is the wrong direction to fail. Short, common words now only suppress a finding when they account for most of the value.
 - **Two or fewer distinct characters**, which covers `xxxxxxxxxxxx`, a run of dashes, and `aaaa-bbbb`.
 
 The `<` and `>` markers are worth noting: they make every `<token>`, `<INSERT_YOUR_KEY_HERE>`, and `<api-key>` quiet in one stroke, since angle brackets never appear in a real credential.
@@ -96,9 +99,13 @@ This list is a deliberate false-negative surface. A key that literally contains 
 
 ## Reporting and redaction
 
-A `Finding` carries the action index, the action identifier, the dotted parameter path, the rule name, and a **redacted** excerpt. The excerpt keeps the first six characters, masks the rest, and appends the original length: `sk-pro****** (51 chars)`.
+A `Finding` carries the action index, the action identifier, the dotted parameter path, the rule name, and a **redacted** excerpt. The excerpt reveals only a *known public vendor prefix* when the value starts with one, then masks everything else and appends the length and a short fingerprint: `sk-proj-****** (51 chars, sha256:0c4bf7ee)`. A value with no recognised prefix reveals nothing at all: `****** (24 chars, sha256:dd5d4a4e)`.
 
-Nothing in the package ever emits a full secret. Findings are printed to terminals, piped into scripts, and — in a scheduled backup — written to CI logs, which are frequently public and are exactly the kind of place a secret should not be copied into a second time. Six characters is enough to identify *which* key leaked (the vendor prefix plus a little) without being usable, and the length is enough to distinguish two keys from the same vendor. Multi-line matches such as a PEM header are flattened to one line so a report cannot be broken up by embedded newlines. Tests assert, for every rule, that neither the finding nor the rendered report contains the original value.
+Nothing in the package ever emits secret content. Findings are printed to terminals, piped into scripts, and — in a scheduled backup — written to CI logs, which are frequently public and are exactly the kind of place a secret should not be copied into a second time.
+
+An earlier version kept the first six characters of every match. For a vendor-prefixed key those six characters are boilerplate, but for a generic match — an `Authorization` value, say — they were six characters of the real secret, which for a short token is a meaningful fraction of it. The prefix is now allow-listed rather than positional: it is shown only when it is one of the publicly documented vendor markers (`sk-ant-`, `sk-proj-`, `sk-`, `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`, `AKIA`, `ASIA`, `AIza`, `xoxb-` and the other Slack variants, `eyJ`, `-----BEGIN`), all of which identify the vendor while revealing none of the key.
+
+The `sha256:` fingerprint is a truncated digest, not reversible, and exists so that two different secrets of the same length at the same path stay distinguishable — findings are deduplicated by excerpt, and without it two distinct keys would collapse into one report. Multi-line matches such as a PEM header are flattened to one line so a report cannot be broken up by embedded newlines. Tests assert, for every rule, that neither the finding nor the rendered report contains the original value.
 
 `Summary(findings)` renders a compact report grouped by action index — one block per action, its identifier in the heading, and one line per finding with the rule, the redacted excerpt, and the path. It returns an empty string when there are no findings, so the caller does not need a length check before printing.
 
@@ -111,3 +118,9 @@ If a rule is wrong for a specific corpus, the change belongs in this package rat
 - To add a vendor rule, append to `rules` with its pattern and a word boundary. Leave `minEntropy` at zero if the prefix is distinctive.
 - To quiet a recurring false positive, prefer a placeholder marker or a shape filter over lowering `minGenericEntropy` — the threshold is shared by every generic rule, and moving it moves all of them.
 - Add both a positive and a negative test. The negative table is the more valuable half of the suite: it holds realistic shortcut content (URLs, a 400-character base64 blob, UUIDs, hex colours, file paths, SHA-1 digests, prose, and every placeholder shape above) and each entry is scanned both as plain text and nested inside an HTTP header, since those are two different code paths.
+
+## Signing mode is validated, not coerced
+
+Related, in `internal/archive`: `ParseMode` accepts an empty mode as the documented default (`anyone`) but returns `ErrUnknownSignMode` for anything it does not recognise, and `Sign` refuses to run on an unknown mode.
+
+An earlier version silently coerced any unrecognised value to `anyone`, which is the *broader* audience. A typo such as `people-who-know-mee` would therefore have widened who could import the generated shortcut — failing in the permissive direction, which is the wrong way for a setting that controls distribution. `NormalizeMode` is retained for callers that want a non-erroring form, and it now falls back to the restrictive `people-who-know-me`.

@@ -2,6 +2,7 @@ package archive
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,16 +17,34 @@ const (
 	ModePeopleWhoKnowMe = "people-who-know-me"
 )
 
-func NormalizeMode(mode string) string {
+var ErrUnknownSignMode = errors.New("unknown signing mode")
+
+func ParseMode(mode string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "":
+		return ModeAnyone, nil
+	case ModeAnyone:
+		return ModeAnyone, nil
 	case ModePeopleWhoKnowMe:
-		return ModePeopleWhoKnowMe
+		return ModePeopleWhoKnowMe, nil
 	default:
-		return ModeAnyone
+		return "", fmt.Errorf("%w %q: want %q or %q", ErrUnknownSignMode, mode, ModeAnyone, ModePeopleWhoKnowMe)
 	}
 }
 
+func NormalizeMode(mode string) string {
+	parsed, err := ParseMode(mode)
+	if err != nil {
+		return ModePeopleWhoKnowMe
+	}
+	return parsed
+}
+
 func Sign(jsonChanged bool, wf map[string]any, outPath, mode string) error {
+	signMode, err := ParseMode(mode)
+	if err != nil {
+		return err
+	}
 	if signedOutputIsStillValid(jsonChanged, outPath) {
 		return nil
 	}
@@ -52,7 +71,7 @@ func Sign(jsonChanged bool, wf map[string]any, outPath, mode string) error {
 		return err
 	}
 
-	cmd := exec.Command("shortcuts", "sign", "--mode", NormalizeMode(mode), "-i", tmp.Name(), "-o", outPath)
+	cmd := exec.Command("shortcuts", "sign", "--mode", signMode, "-i", tmp.Name(), "-o", outPath)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

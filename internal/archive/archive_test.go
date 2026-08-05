@@ -3,6 +3,7 @@ package archive
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -399,19 +400,53 @@ func TestWriteJSONChangeDetection(t *testing.T) {
 	}
 }
 
-func TestNormalizeMode(t *testing.T) {
-	tests := []struct{ in, want string }{
-		{"anyone", ModeAnyone},
-		{"people-who-know-me", ModePeopleWhoKnowMe},
-		{"People-Who-Know-Me", ModePeopleWhoKnowMe},
-		{" people-who-know-me ", ModePeopleWhoKnowMe},
-		{"", ModeAnyone},
-		{"nonsense", ModeAnyone},
+func TestParseMode(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{in: "anyone", want: ModeAnyone},
+		{in: "people-who-know-me", want: ModePeopleWhoKnowMe},
+		{in: "People-Who-Know-Me", want: ModePeopleWhoKnowMe},
+		{in: " people-who-know-me ", want: ModePeopleWhoKnowMe},
+		{in: "", want: ModeAnyone},
+		{in: "nonsense", wantErr: true},
+		{in: "people-who-know-mee", wantErr: true},
 	}
 	for _, tt := range tests {
-		if got := NormalizeMode(tt.in); got != tt.want {
-			t.Errorf("NormalizeMode(%q) = %q, want %q", tt.in, got, tt.want)
+		got, err := ParseMode(tt.in)
+		if tt.wantErr {
+			if !errors.Is(err, ErrUnknownSignMode) {
+				t.Errorf("ParseMode(%q) error = %v, want ErrUnknownSignMode", tt.in, err)
+			}
+			continue
 		}
+		if err != nil {
+			t.Errorf("ParseMode(%q) error = %v", tt.in, err)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("ParseMode(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeModeFallsBackToTheRestrictiveMode(t *testing.T) {
+	if got := NormalizeMode("nonsense"); got != ModePeopleWhoKnowMe {
+		t.Errorf("NormalizeMode(%q) = %q, want the restrictive %q so a typo cannot widen who may import a shortcut",
+			"nonsense", got, ModePeopleWhoKnowMe)
+	}
+	if got := NormalizeMode(""); got != ModeAnyone {
+		t.Errorf("NormalizeMode(\"\") = %q, want the documented default %q", got, ModeAnyone)
+	}
+}
+
+func TestSignRejectsAnUnknownMode(t *testing.T) {
+	err := Sign(true, map[string]any{"WFWorkflowActions": []any{}},
+		filepath.Join(t.TempDir(), "out.shortcut"), "nonsense")
+	if !errors.Is(err, ErrUnknownSignMode) {
+		t.Errorf("Sign() error = %v, want ErrUnknownSignMode", err)
 	}
 }
 
@@ -516,5 +551,67 @@ func TestNewMetadataRendersZeroDatesAsEmptyStrings(t *testing.T) {
 	m := NewMetadata(&shortcuts.Workflow{})
 	if m.Created != "" || m.Modified != "" {
 		t.Errorf("zero dates = %q/%q, want empty strings", m.Created, m.Modified)
+	}
+}
+
+func TestCanonicalizeWalksIntoStructFields(t *testing.T) {
+	type inner struct {
+		Blob []byte    `json:"blob"`
+		When time.Time `json:"when"`
+	}
+	type outer struct {
+		Name  string `json:"name"`
+		Inner inner  `json:"inner"`
+	}
+
+	value := outer{Name: "x", Inner: inner{
+		Blob: []byte("hello"),
+		When: time.Unix(1700000000, 0).UTC(),
+	}}
+
+	data, err := CanonicalJSON(value)
+	if err != nil {
+		t.Fatalf("CanonicalJSON: %v", err)
+	}
+
+	var round map[string]any
+	if err := json.Unmarshal(data, &round); err != nil {
+		t.Fatalf("canonical JSON does not parse: %v\n%s", err, data)
+	}
+	if round["name"] != "x" {
+		t.Errorf("json tags were not honoured: %s", data)
+	}
+	nested, ok := round["inner"].(map[string]any)
+	if !ok {
+		t.Fatalf("inner is %T, want a nested object: %s", round["inner"], data)
+	}
+	if _, present := nested["blob"]; !present {
+		t.Errorf("nested []byte field was dropped: %s", data)
+	}
+	if _, present := nested["when"]; !present {
+		t.Errorf("nested time field was dropped: %s", data)
+	}
+}
+
+func TestCanonicalJSONForMetadataIsUnchangedByStructHandling(t *testing.T) {
+	m := Metadata{
+		Name: "Encode URL", WorkflowID: "44434252-BEA5-4DA6-BC72-949BD054B2E3",
+		ActionCount: 7, Created: "2025-10-23T19:22:25-07:00", Modified: "2025-11-05T13:50:21-07:00",
+		Glyph: 61588, Color: "#FE9949", ClientVersion: "2038.0.1.10",
+		MinimumClientVersion: "1113", WorkflowTypes: []string{"WFWorkflowTypeShowInSearch"},
+	}
+	data, err := CanonicalJSON(m)
+	if err != nil {
+		t.Fatalf("CanonicalJSON: %v", err)
+	}
+	for _, want := range []string{
+		`"name": "Encode URL"`,
+		`"action_count": 7`,
+		`"color": "#FE9949"`,
+		`"workflow_types": [`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("metadata JSON is missing %s:\n%s", want, data)
+		}
 	}
 }

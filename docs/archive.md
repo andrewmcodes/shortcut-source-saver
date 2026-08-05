@@ -91,3 +91,11 @@ Names are not unique in a Shortcuts library, so slugs are not either. Disambigua
 - `TestSignRunsWhenOutputMissing` does the real thing, and skips via `exec.LookPath` when the binary is absent.
 - `TestWriteJSONChangeDetection` asserts the unchanged file's mtime does not move, which is stronger than checking the returned flag, and that no temp files leak.
 - `TestCanonicalJSONDoesNotEscapeHTML` and `TestCanonicalJSONIsDeterministic` guard the two properties the git-diffability rests on.
+
+## Canonicalising structs
+
+`Canonicalize` handles maps, slices, scalars, `[]byte` and `time.Time` explicitly. Structs are converted by marshalling to JSON and back, which honours `json` tags and recurses into nested fields.
+
+Returning the struct untouched, as an earlier version did, meant a `[]byte` or `time.Time` nested inside a struct field bypassed the tagging that top-level values receive. Nothing in the current code hits that case — plist decoding only ever produces maps, slices, scalars, `[]byte` and `time.Time`, so the struct branch is reached solely by `WriteMetadata` — but the inconsistency was a trap for the next caller.
+
+One visible consequence: `metadata.json` keys are now emitted in alphabetical order rather than struct-declaration order, because the value passes through a map. The content is identical, and sorted keys match the convention every other generated JSON file in the repository already follows.

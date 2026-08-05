@@ -249,32 +249,53 @@ func TestScanAnthropicKeyIsNotReportedTwice(t *testing.T) {
 	}
 }
 
-func TestRedact(t *testing.T) {
+func TestRedactNeverEmitsSecretContent(t *testing.T) {
 	tests := []struct {
-		name   string
-		secret string
+		name       string
+		secret     string
+		wantPrefix string
 	}{
-		{"long key", openAIKey},
-		{"short value", "abcd"},
-		{"exactly the prefix", "abcdef"},
-		{"multiline pem", pemKey},
-		{"multibyte", "ünïcödë-sëcrët-vàlüe-1234"},
+		{"openai key keeps its public prefix", openAIKey, "sk-"},
+		{"anthropic key keeps its public prefix", "sk-ant-api03-ZZZqqqWWWeee1234567890", "sk-ant-"},
+		{"aws key keeps its public prefix", awsKeyID, "AKIA"},
+		{"unrecognised secret keeps nothing", "Zq7Wp2Lm9Xv4Nb8Rt6Ys3Kd1", "******"},
+		{"short value", "abcd", "******"},
+		{"multiline pem", pemKey, "-----BEGIN"},
+		{"multibyte", "ünïcödë-sëcrët-vàlüe-1234", "******"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := Redact(tt.secret)
-			if strings.Contains(got, tt.secret) && len([]rune(tt.secret)) > redactPrefix {
-				t.Errorf("Redact(%q) = %q, want the tail masked", tt.secret, got)
+
+			if !strings.HasPrefix(got, tt.wantPrefix) {
+				t.Errorf("Redact(%q) = %q, want it to start with %q", tt.secret, got, tt.wantPrefix)
 			}
 			if strings.Contains(got, "\n") {
 				t.Errorf("Redact() = %q, want a single line", got)
 			}
-			if len([]rune(tt.secret)) > redactPrefix {
-				if prefix := string([]rune(tt.secret)[:redactPrefix]); !strings.HasPrefix(got, prefix) {
-					t.Errorf("Redact(%q) = %q, want prefix %q", tt.secret, got, prefix)
-				}
+
+			body := strings.TrimPrefix(tt.secret, tt.wantPrefix)
+			if tt.wantPrefix != "******" && len(body) >= 4 && strings.Contains(got, body) {
+				t.Errorf("Redact(%q) = %q, leaked the secret body", tt.secret, got)
+			}
+			if tt.wantPrefix == "******" && len([]rune(tt.secret)) >= 4 && strings.Contains(got, tt.secret) {
+				t.Errorf("Redact(%q) = %q, leaked the secret", tt.secret, got)
+			}
+			if !strings.Contains(got, "sha256:") {
+				t.Errorf("Redact() = %q, want a fingerprint so distinct secrets stay distinguishable", got)
 			}
 		})
+	}
+}
+
+func TestRedactDistinguishesDifferentSecretsOfEqualLength(t *testing.T) {
+	first := Redact("Zq7Wp2Lm9Xv4Nb8Rt6Ys3Kd1")
+	second := Redact("Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8")
+	if first == second {
+		t.Errorf("two different secrets of the same length both redacted to %q, which would collapse them during deduplication", first)
+	}
+	if Redact("Zq7Wp2Lm9Xv4Nb8Rt6Ys3Kd1") != first {
+		t.Error("Redact is not stable for the same input")
 	}
 }
 
@@ -438,5 +459,53 @@ func TestScanIgnoresBinaryDataThatIsNotText(t *testing.T) {
 
 	if findings := Scan(actions); len(findings) != 0 {
 		t.Errorf("binary data produced %d finding(s): %v", len(findings), findings)
+	}
+}
+
+func TestPlaceholderMarkersDoNotSwallowRealSecrets(t *testing.T) {
+	realSecrets := []struct {
+		name   string
+		secret string
+	}{
+		{"contains 0000", "sk-proj-Ab0000CdEfGhIjKlMnOpQrStUvWxYz12"},
+		{"contains abc123", "sk-proj-abc123XyZwVuTsRqPoNmLkJiHgFeDc"},
+		{"contains foobar", "sk-proj-foobarXyZwVuTsRqPoNmLkJiHgFeDc"},
+		{"contains test", "sk-proj-testXyZwVuTsRqPoNmLkJiHgFeDcBa"},
+		{"contains 1234567890", "sk-proj-1234567890XyZwVuTsRqPoNmLkJiHg"},
+		{"contains example", "sk-proj-exampleXyZwVuTsRqPoNmLkJiHgFeD"},
+		{"contains key", "sk-proj-keyXyZwVuTsRqPoNmLkJiHgFeDcBaZ"},
+	}
+
+	for _, tt := range realSecrets {
+		t.Run(tt.name, func(t *testing.T) {
+			if isPlaceholder(tt.secret) {
+				t.Errorf("isPlaceholder(%q) = true, but this is a realistic key that merely contains a placeholder-ish substring", tt.secret)
+			}
+			actions := []any{map[string]any{
+				ActionIdentifierKey: "is.workflow.actions.gettext",
+				ActionParametersKey: map[string]any{"WFTextActionText": tt.secret},
+			}}
+			if findings := Scan(actions); len(findings) == 0 {
+				t.Errorf("Scan(%q) found nothing; a real key was silently skipped", tt.secret)
+			}
+		})
+	}
+}
+
+func TestPlaceholderDetectionStillCatchesTemplates(t *testing.T) {
+	placeholders := []string{
+		"YOUR_API_KEY_HERE",
+		"sk-YOUR_OPENAI_API_KEY_GOES_HERE",
+		"<your-token>",
+		"CHANGEME_CHANGEME_CHANGEME",
+		"xxxxxxxxxxxxxxxxxxxx",
+		"api_key_placeholder_value",
+		"example_secret_example",
+		"test_test_test_test_test",
+	}
+	for _, value := range placeholders {
+		if !isPlaceholder(value) {
+			t.Errorf("isPlaceholder(%q) = false, want it treated as a placeholder", value)
+		}
 	}
 }
