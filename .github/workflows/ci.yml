@@ -13,9 +13,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  CGO_ENABLED: "0"
-
 jobs:
   test:
     name: test (${{ matrix.os }})
@@ -48,7 +45,7 @@ jobs:
         run: go test -race -count=1 ./cmd/... ./internal/...
 
       - name: Build
-        run: go build -trimpath -o bin/sss ./cmd/sss
+        run: CGO_ENABLED=0 go build -trimpath -o bin/sss ./cmd/sss
 
       - name: Smoke test the binary
         run: ./bin/sss --help
