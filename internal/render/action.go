@@ -13,6 +13,7 @@ const (
 	conditionalIdentifier = "is.workflow.actions.conditional"
 	menuIdentifier        = "is.workflow.actions.choosefrommenu"
 	commentIdentifier     = "is.workflow.actions.comment"
+	menuItemsParameter    = "WFMenuItems"
 	outputNameParameter   = "CustomOutputName"
 	operationParameter    = "operation"
 )
@@ -100,6 +101,10 @@ func (r *reviewer) renderAction(in actionInput) *item {
 				marker := append([]node{text(continuationSpace + "➔ ")}, visibleText(label)...)
 				suffix = append(suffix, wrap(kindBold, marker...))
 			}
+			continue
+		}
+		if items, ok := value.([]any); ok && in.Identifier == menuIdentifier && key == menuItemsParameter {
+			rows = append(rows, paramRow{Label: "Menu items", Value: r.lines(items)})
 			continue
 		}
 		if slot, ok := act.SlotFor(key); ok {

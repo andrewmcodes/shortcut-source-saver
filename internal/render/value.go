@@ -58,6 +58,17 @@ func (r *reviewer) list(items []any) []node {
 	return append(out, text("]"))
 }
 
+func (r *reviewer) lines(items []any) []node {
+	var out []node
+	for i, item := range items {
+		if i > 0 {
+			out = append(out, text("\n"))
+		}
+		out = append(out, r.value(item)...)
+	}
+	return out
+}
+
 func (r *reviewer) mapping(m map[string]any) []node {
 	if kind, ok := stringAt(m, "Type"); ok {
 		if kind == "Variable" || kind == "ActionOutput" || variableKindLabels[kind] != "" {
