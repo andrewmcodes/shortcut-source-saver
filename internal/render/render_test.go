@@ -346,7 +346,144 @@ func fixtures() []fixture {
 			}),
 			flowAction("is.workflow.actions.conditional", "E26F2EDF", 2, map[string]any{"UUID": "wrapped-end"}),
 		)},
+
+		{name: "find-filter", workflow: workflow("Find Filter",
+			action("is.workflow.actions.filter.photos", map[string]any{
+				"UUID": "find",
+				"WFContentItemFilter": predicateTable(1,
+					filterTemplate("Is a Screenshot", 4, map[string]any{"Bool": true, "Unit": uint64(4)}),
+					filterTemplate("Is Favorite", 5, map[string]any{"Bool": true, "Unit": uint64(4)}),
+					filterTemplate("Media Type", 4, map[string]any{
+						"Unit": uint64(4),
+						"Enumeration": map[string]any{
+							"WFSerializationType": "WFStringSubstitutableState",
+							"Value":               "Image",
+						},
+					}),
+					filterTemplate("Album", 4, map[string]any{"String": "Favorites", "Unit": uint64(4)}),
+					filterTemplate("Orientation", 4, map[string]any{"Unit": uint64(4)}),
+					filterTemplate("Date Taken", 1002, nil),
+					filterTemplate("Creation Date", 1001, map[string]any{"Number": uint64(1), "Unit": uint64(8192)}),
+					filterTemplate("Camera Make", 100, nil),
+					filterTemplate("Date Taken", 101, nil),
+				),
+				"WFContentItemSortProperty": "Date Taken",
+				"WFContentItemSortOrder":    "Latest First",
+			}),
+			action("is.workflow.actions.deletephotos", map[string]any{
+				"photos": attachment(actionOutput("find", "Photos")),
+			}),
+		)},
+
+		{name: "menu-demo", workflow: workflow("Menu Demo",
+			flowAction("is.workflow.actions.choosefrommenu", "DDDD", 0, map[string]any{
+				"WFMenuPrompt": "What would you like to do?",
+				"WFMenuItems":  []any{"Say Hello", "Say Goodbye", tokenString("Tell a Joke")},
+			}),
+			flowAction("is.workflow.actions.choosefrommenu", "DDDD", 1, map[string]any{"WFMenuItemTitle": "Say Hello"}),
+			action("is.workflow.actions.showresult", map[string]any{"Text": "Hello there! Nice to meet you."}),
+			flowAction("is.workflow.actions.choosefrommenu", "DDDD", 1, map[string]any{"WFMenuItemTitle": "Say Goodbye"}),
+			action("is.workflow.actions.showresult", map[string]any{"Text": "Goodbye! See you next time."}),
+			flowAction("is.workflow.actions.choosefrommenu", "DDDD", 1, map[string]any{"WFMenuItemTitle": "Tell a Joke"}),
+			action("is.workflow.actions.showresult", map[string]any{
+				"Text": "Why do programmers prefer dark mode? Because light attracts bugs!",
+			}),
+			flowAction("is.workflow.actions.choosefrommenu", "DDDD", 2, nil),
+		)},
+
+		{name: "repeat-each", workflow: workflow("Repeat Each",
+			action("is.workflow.actions.list", map[string]any{"UUID": "list"}),
+			flowAction("is.workflow.actions.repeat.each", "each", 0, map[string]any{
+				"UUID":    "each-start",
+				"WFInput": attachment(actionOutput("list", "List")),
+			}),
+			action("is.workflow.actions.gettext", map[string]any{
+				"UUID": "line",
+				"WFTextActionText": tokenStringWith("￼ ￼ on ￼ from ￼ by ￼ (￼)", map[string]any{
+					"{0, 1}":  actionOutput("each-start", "Repeat Index"),
+					"{2, 1}":  actionOutput("each-start", "Repeat Item"),
+					"{7, 1}":  map[string]any{"Type": "CurrentDate"},
+					"{14, 1}": map[string]any{"Type": "Clipboard"},
+					"{19, 1}": map[string]any{"Type": "DeviceDetails"},
+					"{22, 1}": map[string]any{"Type": "Ask", "Prompt": "Who?"},
+				}),
+			}),
+			action("is.workflow.actions.setclipboard", map[string]any{
+				"WFInput": map[string]any{"Type": "CurrentDate"},
+			}),
+			flowAction("is.workflow.actions.repeat.each", "each", 2, map[string]any{"UUID": "each-end"}),
+			action("is.workflow.actions.showresult", map[string]any{
+				"Text": tokenStringWith("￼", map[string]any{"{0, 1}": actionOutput("each-end", "Repeat Results")}),
+			}),
+		)},
+
+		{name: "malformed-values", workflow: workflow("Malformed Values",
+			action("is.workflow.actions.gettext", map[string]any{
+				"UUID":             "text",
+				"WFTextActionText": tokenString("value"),
+			}),
+			action("is.workflow.actions.conditional", map[string]any{
+				"GroupingIdentifier":        "strings",
+				"WFControlFlowMode":         "0",
+				"WFCondition":               "Equals",
+				"WFInput":                   attachment(actionOutput("text", "Text")),
+				"WFConditionalActionString": "expected value",
+			}),
+			action("is.workflow.actions.nothing", nil),
+			action("is.workflow.actions.conditional", map[string]any{
+				"GroupingIdentifier": "strings",
+				"WFControlFlowMode":  "2",
+			}),
+			flowAction("is.workflow.actions.conditional", "unknown-op", 0, map[string]any{
+				"WFCondition":               uint64(42),
+				"WFInput":                   attachment(actionOutput("text", "Text")),
+				"WFConditionalActionString": "operand",
+			}),
+			flowAction("is.workflow.actions.conditional", "unknown-op", 2, nil),
+			action("is.workflow.actions.conditional", map[string]any{
+				"GroupingIdentifier": "junk",
+				"WFControlFlowMode":  "start",
+			}),
+		)},
+
+		{name: "weather-llm", workflow: workflow("Weather Report",
+			action("is.workflow.actions.weather.currentconditions", map[string]any{"UUID": "EEEE"}),
+			action("is.workflow.actions.gettext", map[string]any{
+				"UUID": "FFFF",
+				"WFTextActionText": tokenStringWith(
+					"Generate a friendly weather report based on this data:\n￼\n\nKeep it brief and include clothing recommendations.",
+					map[string]any{"{56, 1}": actionOutput("EEEE", "Weather Conditions")}),
+			}),
+			action("is.workflow.actions.askllm", map[string]any{
+				"UUID":                   "GGGG",
+				"WFLLMModel":             "Apple Intelligence",
+				"WFGenerativeResultType": "Text",
+				"WFLLMPrompt":            tokenStringWith("￼", map[string]any{"{0, 1}": actionOutput("FFFF", "Text")}),
+			}),
+			action("is.workflow.actions.showresult", map[string]any{
+				"Text": tokenStringWith("￼", map[string]any{"{0, 1}": actionOutput("GGGG", "Response")}),
+			}),
+		)},
 	}
+}
+
+func predicateTable(prefix int, templates ...any) map[string]any {
+	return map[string]any{
+		"WFSerializationType": "WFContentPredicateTableTemplate",
+		"Value": map[string]any{
+			"WFActionParameterFilterPrefix":    uint64(prefix),
+			"WFContentPredicateBoundedDate":    false,
+			"WFActionParameterFilterTemplates": templates,
+		},
+	}
+}
+
+func filterTemplate(property string, operator int, values map[string]any) map[string]any {
+	t := map[string]any{"Property": property, "Operator": uint64(operator), "Removable": true}
+	if values != nil {
+		t["Values"] = values
+	}
+	return t
 }
 
 func TestWebReviewGoldenFiles(t *testing.T) {
