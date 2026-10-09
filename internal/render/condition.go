@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	conditionIsNot            = 5
 	conditionHasAnyValue      = 100
 	conditionHasNoValue       = 101
 	conditionIsToday          = 1002
@@ -155,8 +156,13 @@ func (r *reviewer) filter(filter map[string]any) []node {
 	operator, _ := r.cat.Condition(operatorCode)
 
 	shape := r.filterShape(property)
-	if shape.Type == "Bool" {
-		if enabled, ok := values["Bool"].(bool); ok && !enabled {
+	if shape.Type == "Bool" && operatorCode != conditionHasAnyValue && operatorCode != conditionHasNoValue {
+		enabled, ok := values["Bool"].(bool)
+		negated := ok && !enabled
+		if operatorCode == conditionIsNot {
+			negated = !negated
+		}
+		if negated {
 			return visibleText(strings.Replace(property, " ", " Not ", 1))
 		}
 		return visibleText(property)
@@ -164,19 +170,19 @@ func (r *reviewer) filter(filter map[string]any) []node {
 
 	out := visibleText(property + " " + operator)
 	switch {
-	case operatorCode == conditionIsToday:
+	case operatorCode == conditionIsToday, operatorCode == conditionHasAnyValue, operatorCode == conditionHasNoValue:
 		return out
 	case operatorCode == conditionIsBetween:
 		out = append(out, text(" "))
-		out = append(out, r.filterOperand(values, "Date")...)
+		out = append(out, r.filterOperand(values, "Date", "")...)
 		out = append(out, text(" and "))
-		return append(out, r.filterOperand(values, "AnotherDate")...)
+		return append(out, r.filterOperand(values, "AnotherDate", "")...)
 	case operatorCode > conditionRelativeBoundary && shape.Type == "Date":
 		shape = catalog.FilterProperty{Type: "Number", Unit: "Unit"}
 	}
 
 	out = append(out, text(" "))
-	out = append(out, r.filterOperand(values, shape.Type)...)
+	out = append(out, r.filterOperand(values, shape.Type, shape.Default)...)
 	if shape.Unit != "" {
 		out = append(out, text(" "+r.filterUnit(shape, values)))
 	}
@@ -196,12 +202,14 @@ func (r *reviewer) filterShape(property string) catalog.FilterProperty {
 	return catalog.FilterProperty{Type: "String"}
 }
 
-func (r *reviewer) filterOperand(values map[string]any, key string) []node {
-	if value, ok := values[key]; ok {
-		return r.value(value)
+func (r *reviewer) filterOperand(values map[string]any, key, fallback string) []node {
+	for _, candidate := range []string{key, "String", "Number"} {
+		if value, ok := values[candidate]; ok {
+			return r.value(value)
+		}
 	}
-	if value, ok := values["Number"]; ok {
-		return r.value(value)
+	if fallback != "" {
+		return textNodes(fallback)
 	}
 	if key == "Date" || key == "AnotherDate" {
 		return textNodes("(now)")
