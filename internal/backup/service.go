@@ -363,6 +363,7 @@ func loadFromRepo(dir string) (*shortcuts.Workflow, error) {
 		w.ActionCount = meta.ActionCount
 	}
 
+	w.HiddenFromWidget = true
 	for _, t := range arrayValue(source["WFWorkflowTypes"]) {
 		if s, ok := t.(string); ok {
 			switch s {
