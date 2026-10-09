@@ -20,6 +20,6 @@ A backup of the **Repeat Each** shortcut. `shortcut.json` is the canonical, diff
 - `0` List
 - `1` Repeat with Each in [0 List]
   - `2` Text
-  - `3` Copy ?type?CurrentDate to Clipboard
+  - `3` Copy [Current Date] to Clipboard
 - `4` End Repeat with Each
 - `5` Show Content

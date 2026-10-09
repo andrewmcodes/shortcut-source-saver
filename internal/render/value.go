@@ -60,7 +60,7 @@ func (r *reviewer) list(items []any) []node {
 
 func (r *reviewer) mapping(m map[string]any) []node {
 	if kind, ok := stringAt(m, "Type"); ok {
-		if kind == "Variable" {
+		if kind == "Variable" || kind == "ActionOutput" || variableKindLabels[kind] != "" {
 			return r.variable(m)
 		}
 		return textNodes("?type?" + kind)
@@ -85,7 +85,7 @@ func (r *reviewer) mapping(m map[string]any) []node {
 			return visibleText(display)
 		}
 		return nil
-	case "WFNumberSubstitutableState", "WFNumberStringSubstitutableState", "WFDateSubstitutableState":
+	case "WFNumberSubstitutableState", "WFNumberStringSubstitutableState", "WFDateSubstitutableState", "WFStringSubstitutableState":
 		return r.value(m["Value"])
 	case "WFContentPredicateTableTemplate":
 		return r.predicate(m["Value"])
