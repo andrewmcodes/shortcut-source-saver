@@ -479,7 +479,7 @@ func fixtures() []fixture {
 }
 
 func withDetails(w *shortcuts.Workflow) *shortcuts.Workflow {
-	w.InputContentItemClasses = []any{"WFStringContentItem", "WFURLContentItem", "WFImageContentItem"}
+	w.InputContentItemClasses = []any{"WFStringContentItem", "WFURLContentItem", "WFSafariWebPageContentItem", "WFAVAssetContentItem"}
 	w.OutputContentItemClasses = []any{"WFStringContentItem"}
 	w.HasOutputFallback = true
 	w.HasShortcutInputVariables = true
@@ -968,5 +968,18 @@ func assertTagsBalanced(t *testing.T, page []byte) {
 	}
 	if len(stack) > 0 {
 		t.Fatalf("unclosed tags: %v", stack)
+	}
+}
+
+func TestContentClassesReadAsWords(t *testing.T) {
+	got := contentClasses([]any{
+		"WFSafariWebPageContentItem", "WFURLContentItem", "WFAVAssetContentItem",
+		"WFiTunesProductContentItem", "WFPDFContentItem", "WFStringContentItem",
+		"WFLinkEntityContentItem_com.apple.mobilenotes_AllowDarkBackgroundsEntity",
+		"WFLinkEntityContentItem_com.apple.reminders_RemindersSettingsDeepLinks",
+	})
+	want := "Safari Web Page, URL, AV Asset, iTunes Product, PDF, Text, Allow Dark Backgrounds, Reminders Settings Deep Links"
+	if got != want {
+		t.Errorf("contentClasses() = %q, want %q", got, want)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	texttemplate "text/template"
 	"time"
+	"unicode"
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/archive"
 	"github.com/andrewmcodes/shortcut-source-saver/internal/catalog"
@@ -201,10 +202,33 @@ func contentClasses(classes []any) string {
 	names := make([]string, 0, len(classes))
 	for _, raw := range classes {
 		if class, ok := raw.(string); ok && class != "" {
-			names = append(names, coercionName(class))
+			names = append(names, splitWords(contentClassName(class)))
 		}
 	}
 	return strings.Join(names, ", ")
+}
+
+func contentClassName(class string) string {
+	if i := strings.LastIndex(class, "_"); i >= 0 && i < len(class)-1 {
+		return strings.TrimSuffix(class[i+1:], "Entity")
+	}
+	return coercionName(class)
+}
+
+func splitWords(s string) string {
+	runes := []rune(s)
+	var b strings.Builder
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) && !(i == 1 && unicode.IsLower(runes[0])) {
+			prev := runes[i-1]
+			nextLower := i+1 < len(runes) && unicode.IsLower(runes[i+1])
+			if unicode.IsLower(prev) || unicode.IsDigit(prev) || (unicode.IsUpper(prev) && nextLower) {
+				b.WriteRune(' ')
+			}
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func (r *reviewer) importQuestion(raw any) []node {

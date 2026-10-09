@@ -12,7 +12,7 @@ A backup of the **Import Questions** shortcut. `shortcut.json` is the canonical,
 | Client version | 3216 |
 | Minimum client version | 3010 |
 | Workflow types | ActionExtension, NCWidget, WFWorkflowTypeShowInSearch |
-| Accepts | Text, URL, Image |
+| Accepts | Text, URL, Safari Web Page, AV Asset |
 | Output | Text |
 | Output fallback | yes |
 | Shortcut input variables | yes |
