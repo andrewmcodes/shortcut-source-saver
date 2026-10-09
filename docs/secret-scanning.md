@@ -22,7 +22,9 @@ As a sanity check, the scanner is run against the project's 485-action reference
 
 ## What is scanned
 
-`Scan(actions []any)` takes the decoded `WFWorkflowActions` array — each element a `map[string]any` with an action type under `WFWorkflowActionIdentifier` and its parameters under `WFWorkflowActionParameters`. `ScanValue(index, identifier, value)` does the same for any other decoded tree, such as a shortcut's import questions.
+`Scan(actions []any)` takes the decoded `WFWorkflowActions` array — each element a `map[string]any` with an action type under `WFWorkflowActionIdentifier` and its parameters under `WFWorkflowActionParameters`. `ScanValue(index, identifier, value)` does the same for any other decoded tree.
+
+The backup runs both: `Scan` over the actions, then `ScanValue` over each entry of `WFWorkflowImportQuestions`, reported against the question's `ActionIndex` under the identifier `import question`. Import questions are worth scanning on their own because a shared shortcut that asks "paste your API key" on import often ships with the author's own key as the `DefaultValue`, and the web review and README both show that default.
 
 The walk is fully recursive through maps, slices, and strings, because a shallow pass over the parameter dictionary would miss almost everything. Shortcuts serialises typed text as a token-attachment structure, so a value a user typed into one field can sit four or five dictionaries deep:
 

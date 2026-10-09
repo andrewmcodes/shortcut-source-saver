@@ -73,6 +73,18 @@ Unbalanced blocks occur in the wild — Shortcuts itself will happily store them
 
 In every case the header card grows a red `corrupted` link to the offending action and the README grows a warning callout. Rendering always continues, and the page is always well-formed — the golden tests assert both, including tag balance.
 
+### Values of the wrong type are flagged, not coerced
+
+`WFControlFlowMode` and `WFCondition` are integers in every real export, but hand-written and generated plists get them wrong — storing `<string>0</string>` for the mode, or a word like `"Equals"` for the condition, is the most common mistake in generated shortcuts. Treating a missing integer as `0` would silently render a string `"2"` (End If) as a second opener and an `"Equals"` comparison as `<`.
+
+`controlFlowModeOf` and `conditionMalformed` (`flow.go`) catch both before rendering:
+
+- a mode string that parses as an integer (`"0"`, `"2"`) is used for nesting, so the structure the author meant still renders, and the action is flagged;
+- a mode that does not parse (`"start"`) makes the action a flagged leaf, since there is no way to know which block it belongs to;
+- a non-integer `WFCondition` is shown verbatim in a flagged box in the condition, and the action is flagged.
+
+The reasons for one action are joined, the first malformed action gets a `Malformed value` row and the `corrupted` link in the header, and the README gets its own warning callout and a `— **malformed value**` marker in the outline. A numeric condition code the catalog does not know renders as `operator <code>` rather than as an empty box.
+
 ## Magic variables are cross-referenced by UUID
 
 Before rendering anything, `newReviewer` builds `map[UUID]int` from every action's `WFWorkflowActionParameters.UUID` to that action's index. This has to happen first because a reference can point forwards (a `Repeat` body can consume an output produced later in the source order of a menu).
@@ -83,7 +95,9 @@ Once unwrapped, a descriptor whose `Type` is:
 
 - `ActionOutput` renders as `[<producer index> <OutputName>]`, clickable: the page's script expands every collapsed ancestor of `#m<index>` and scrolls to it. The consumption is also recorded in reverse, so the producing action's own title gains `» 3 7` — the indices that use its output. That reverse list is what makes a long shortcut readable: you can see at a glance whether an action's output is used at all.
 - `ActionOutput` with an `OutputUUID` that is in no action renders flagged (`[? Name]` in red) rather than silently as text. A dangling output means the shortcut lost an action, and silence would hide it.
-- `Variable` renders the `VariableName`; anything else renders the type, with `ExtensionInput` spelled "Shortcut Input" and an `Ask` prompt shown in quotes.
+- `Variable` renders the `VariableName`; the built-in sources are spelled the way the Shortcuts editor spells them (`ExtensionInput` → Shortcut Input, `CurrentDate` → Current Date, `DeviceDetails` → Device Details, `Ask` → Ask Each Time, with its prompt in quotes); any other type renders verbatim.
+
+The same descriptors can also appear *bare* — `{"Type": "CurrentDate"}` directly as a parameter value, with no attachment wrapper. `mapping` routes a bare dict to the variable renderer when its `Type` is `Variable`, `ActionOutput` or one of the built-in sources above; any other `Type` still renders as `?type?<Type>` so an unknown shape stays visible.
 
 Aggrandizements modify the variable in place: `WFCoercionVariableAggrandizement` → ` as <Type>` (the `WF…ContentItem` wrapper stripped, `String` read as Text and `Workflow` as Shortcut), `WFDictionaryValueVariableAggrandizement` → `.<DictionaryKey>`, `WFPropertyVariableAggrandizement` → `’s <PropertyName>`. Anything else is dumped as sorted `key value` pairs rather than dropped.
 
@@ -111,6 +125,7 @@ Parameters that are not consumed by a slot become rows under the button:
 
 - the parameter the catalog marks as the action's body (`#`, e.g. `WFTextActionText`) renders full width with no label, since its label would repeat the action name;
 - `CustomOutputName` is appended to the title as `➔ name`;
+- `WFMenuItems` on a Choose from Menu opener renders as a `Menu items` row with one item per line, rather than as a bracketed list;
 - everything else becomes a labelled row whose label is the key with a leading `WF` stripped;
 - `UUID`, `GroupingIdentifier`, `WFControlFlowMode` and `AppIntentDescriptor` are structural and never rendered (`catalog.IsIgnoredParameter`).
 
@@ -126,7 +141,9 @@ Rows are emitted in sorted key order. The reference emits them in plist order, w
 - the multi-condition form (`WFConditions`) renders `Any`/`All` — `WFActionParameterFilterPrefix == 0` means Any — followed by one line per entry of `WFActionParameterFilterTemplates`, each rendered by the same single-condition code;
 - mode 1 prefixes ` if ` so an `Otherwise If` reads as one sentence.
 
-The same machinery renders `WFContentPredicateTableTemplate` values (the filter tables in "Find … where"), using `catalog.Filter` for the property's type and unit enumeration and `catalog.Unit` to name the unit code.
+The same machinery renders `WFContentPredicateTableTemplate` values (the filter tables in "Find … where"), using `catalog.Filter` for the property's type and unit enumeration and `catalog.Unit` to name the unit code. A filter's operand is looked up in `Values` under the property's catalog type, then `String`, then `Number`, because real shortcuts are not consistent about which key a value lands under: an `Album` filter is typed `Enumeration` in the catalog but stored under `String`. When no operand is stored at all, the catalog's default for the property (`Recents`, `Image`, `Up`, …) is what Shortcuts uses, so that is what is shown. Operators `100`/`101` ("has any value" / "does not have any value") and `1002` ("is today") take no operand. Boolean properties read as a phrase — `Is Favorite` / `Is Not Favorite` — negated by either a `false` value or operator `5` ("is not"), and the two cancel out.
+
+Enumeration operands arrive wrapped as `WFStringSubstitutableState`, which, like the number and date substitutable states, renders its `Value`.
 
 ## Colour groups
 
@@ -150,12 +167,14 @@ Content that would drown the page is collapsed to start with: a body over 10 000
 
 ## The README and the site
 
-The README is deliberately plain Markdown so GitHub renders it: a metadata table, links to the importable binary and the web review, and the action outline as a nested bullet list, one line per action, indented by control-flow depth with the action's index in a code span. The outline summary is the same title the web review shows, with markup and the review's navigation affordances stripped and whitespace collapsed. There is no colour swatch image, because the only ways to draw one in GitHub Markdown are an external image service or inline styles GitHub strips; the hex value is in the table and the site index draws the real swatch.
+Both the header card and the README metadata table show the workflow-level settings a reader needs to use the shortcut, each only when it is set, so a shortcut without them gets no empty rows: `Accepts` and `Output` (the input and output content item classes, named the same way as a coercion), `Output fallback`, `Shortcut input variables`, and one `Import question` row per entry of `WFWorkflowImportQuestions` — the question's text, the parameter it fills in, a link to the action it targets, and its default value when there is one. The README lists the import questions as their own section above the outline. Those defaults are exactly where a shared shortcut's author leaves their own API key, which is why the backup scans import questions before anything is written ([secret-scanning.md](secret-scanning.md)).
+
+The README is deliberately plain Markdown so GitHub renders it: a metadata table, links to the importable binary and the web review, and the action outline as a nested bullet list, one line per action, indented by control-flow depth with the action's index in a code span. The outline summary is the same title the web review shows, with markup and the review's navigation affordances stripped and whitespace collapsed. A line break inside a title, which only the grouped-condition form of `If` produces, becomes `; ` so the conditions do not run together on one line. There is no colour swatch image, because the only ways to draw one in GitHub Markdown are an external image service or inline styles GitHub strips; the hex value is in the table and the site index draws the real swatch.
 
 The site is returned as a map of relative path to bytes rather than written directly, so the caller owns file writing, change detection and git. Slugs come from `archive.Slug` (or `Entry.Slug`), with `-2`, `-3` suffixes if two shortcuts collide. The index is a table of name, action count, modified date and swatch, sorted case-insensitively by name for a stable file, and sortable in the browser by clicking a column header — numeric and date columns carry a `data-sort` attribute so the sort is not lexical.
 
 ## Tests
 
-`render_test.go` drives eight hand-built workflows through all three outputs and compares against golden files in `testdata/`; run `go test ./internal/render/ -update` to regenerate them, and read the diff as the review it is. The fixtures cover a linear shortcut (with a dictionary and a slot default), nested `If`/`Otherwise`/`End If` including the multi-condition and "is between" forms, a `Repeat` containing a `Menu` containing an `If` (which is what exercises all three depth cues), unbalanced blocks in all three broken shapes, a magic-variable chain with aggrandizements and a dangling output, a token string whose attachment offsets sort differently as numbers than as strings, uncatalogued Apple and third-party actions, text made of `<script>`, quotes, zero-width, non-breaking and control characters, and variables buried in one and two layers of serialization wrapper.
+`render_test.go` drives fifteen hand-built workflows through all three outputs and compares against golden files in `testdata/`; run `go test ./internal/render/ -update` to regenerate them, and read the diff as the review it is. The fixtures cover a linear shortcut (with a dictionary and a slot default), nested `If`/`Otherwise`/`End If` including the multi-condition and "is between" forms, a `Repeat` containing a `Menu` containing an `If` (which is what exercises all three depth cues), unbalanced blocks in all three broken shapes, a magic-variable chain with aggrandizements and a dangling output, a token string whose attachment offsets sort differently as numbers than as strings, uncatalogued Apple and third-party actions, text made of `<script>`, quotes, zero-width, non-breaking and control characters, and variables buried in one and two layers of serialization wrapper. Six more are adapted from the examples in the shortcuts-generator reference (see [reference-notes.md](reference-notes.md)): a Find Photos filter table covering every operand shape, a menu with `WFMenuItems`, a Repeat with Each using Repeat Item/Index and the built-in variable sources, string-typed modes and conditions, a token string whose attachment offset is off by one, and a workflow with import questions and input/output classes.
 
 Beyond the goldens the tests assert what the goldens cannot: that every output is byte-identical across two runs, that every opened tag closes in LIFO order (a hand-rolled scan, to avoid taking a dependency on `golang.org/x/net/html`), that shortcut text cannot introduce a tag, that no README contains an HTML-only `\u…` escape, that the token-string splice order follows the numeric offsets, and that `ExpandAll`, base URLs, relative links and slug collisions behave.

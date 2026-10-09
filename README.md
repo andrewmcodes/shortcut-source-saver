@@ -107,13 +107,13 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 
 `sss init` scaffolds a GitHub Actions workflow in your backup repo that publishes `docs/` to GitHub Pages. Push the repo, then enable **Settings → Pages → GitHub Actions**.
 
-The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse.
+The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The header lists what the shortcut accepts and outputs and any questions it asks on import.
 
 ## Secrets
 
 Shortcuts frequently embed API keys directly in `Text` and `Get Contents of URL` actions. Publishing a backup to a public repo would publish those keys, permanently.
 
-So before writing anything, `sss` scans the decoded actions for credential-shaped strings and stops if it finds any, telling you which shortcut and which action. Override with `--allow-secrets` once you have looked. `auto_push` is off by default for the same reason.
+So before writing anything, `sss` scans the decoded actions and import questions for credential-shaped strings and stops if it finds any, telling you which shortcut and which action. Override with `--allow-secrets` once you have looked. `auto_push` is off by default for the same reason.
 
 The scan is deliberately conservative about false positives — see [docs/secret-scanning.md](docs/secret-scanning.md).
 
@@ -126,6 +126,7 @@ The scan is deliberately conservative about false positives — see [docs/secret
 - [docs/configuration.md](docs/configuration.md) — every config option
 - [docs/git-integration.md](docs/git-integration.md) — how commits are made
 - [docs/secret-scanning.md](docs/secret-scanning.md) — the credential guard
+- [docs/reference-notes.md](docs/reference-notes.md) — where the third-party shortcuts-generator reference is wrong
 
 ## Credits
 
