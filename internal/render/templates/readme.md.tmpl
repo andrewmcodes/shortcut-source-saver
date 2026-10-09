@@ -24,16 +24,29 @@ A backup of the **{{.Name}}** shortcut. `shortcut.json` is the canonical, diffab
 {{- with .WorkflowTypes}}
 | Workflow types | {{.}} |
 {{- end}}
+{{- range .Details}}
+| {{.Label}} | {{.Value}} |
+{{- end}}
 
 [Import the shortcut]({{.ShortcutHref}}) · [Open the web review]({{.ReviewLink}})
-{{if .Corrupted}}
+{{- if .Corrupted}}
+
 > [!WARNING]
 > The control flow in this shortcut does not balance: action {{.CorruptedAt}} opens or closes a block that has no counterpart. The web review flags it.
-{{end}}
+{{- end}}
 {{- if .Malformed}}
+
 > [!WARNING]
 > Action {{.MalformedAt}} stores a value with the wrong type: {{.Malformed}}. The web review flags it.
-{{end}}
+{{- end}}
+{{- with .ImportQuestions}}
+
+## Import questions
+{{range .}}
+- {{.}}
+{{- end}}
+{{- end}}
+
 ## Actions
 {{if .Outline}}
 {{range .Outline}}{{.Indent}}- `{{.Index}}` {{.Summary}}{{if .Corrupted}} — **corrupted block**{{end}}{{if .Malformed}} — **malformed value**{{end}}

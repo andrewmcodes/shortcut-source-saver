@@ -464,7 +464,42 @@ func fixtures() []fixture {
 				"Text": tokenStringWith("￼", map[string]any{"{0, 1}": actionOutput("GGGG", "Response")}),
 			}),
 		)},
+
+		{name: "import-questions", workflow: withDetails(workflow("Import Questions",
+			action("is.workflow.actions.gettext", map[string]any{
+				"UUID":             "key",
+				"WFTextActionText": tokenString("replace me"),
+			}),
+			action("is.workflow.actions.downloadurl", map[string]any{
+				"UUID":  "fetch",
+				"WFURL": "https://example.com/api",
+			}),
+		))},
 	}
+}
+
+func withDetails(w *shortcuts.Workflow) *shortcuts.Workflow {
+	w.InputContentItemClasses = []any{"WFStringContentItem", "WFURLContentItem", "WFImageContentItem"}
+	w.OutputContentItemClasses = []any{"WFStringContentItem"}
+	w.HasOutputFallback = true
+	w.HasShortcutInputVariables = true
+	w.ImportQuestions = []any{
+		map[string]any{
+			"ActionIndex":  uint64(0),
+			"Category":     "Parameter",
+			"ParameterKey": "WFTextActionText",
+			"Text":         "Paste your <API> key",
+			"DefaultValue": "",
+		},
+		map[string]any{
+			"ActionIndex":  uint64(1),
+			"Category":     "Parameter",
+			"ParameterKey": "WFURL",
+			"Text":         "Which server?",
+			"DefaultValue": "https://example.com/api",
+		},
+	}
+	return w
 }
 
 func predicateTable(prefix int, templates ...any) map[string]any {
