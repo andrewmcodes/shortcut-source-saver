@@ -16,14 +16,14 @@ A backup of the **Malformed Values** shortcut. `shortcut.json` is the canonical,
 [Import the shortcut](shortcut.shortcut) · [Open the web review](review.html)
 
 > [!WARNING]
-> The control flow in this shortcut does not balance: action 6 opens or closes a block that has no counterpart. The web review flags it.
+> Action 1 stores a value with the wrong type: WFCondition is the string "Equals", not an operator code; WFControlFlowMode is the string "0", not an integer. The web review flags it.
 
 ## Actions
 
 - `0` Text
-- `1` If [0 Text] < expected value
+- `1` If [0 Text] Equals expected value — **malformed value**
   - `2` Nothing
-  - `3` If
-    - `4` If [0 Text] operand
-    - `5` End If
-    - `6` If
+- `3` End If — **malformed value**
+- `4` If [0 Text] operator 42 operand
+- `5` End If
+- `6` If — **malformed value**

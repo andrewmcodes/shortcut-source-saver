@@ -155,6 +155,16 @@ func headerFor(w *shortcuts.Workflow, built *review) pageHeader {
 			Text:  fmt.Sprintf("the block opened by action %d is never closed", built.UnclosedAt),
 		})
 	}
+	if built.MalformedAt >= 0 {
+		header.Corrupted = true
+		if header.CorruptedAt < 0 {
+			header.CorruptedAt = built.MalformedAt
+		}
+		header.Rows = append(header.Rows, metaRow{
+			Label: "Malformed value",
+			Text:  fmt.Sprintf("action %d: %s", built.MalformedAt, built.Malformed),
+		})
+	}
 	return header
 }
 
@@ -193,6 +203,8 @@ type readmeData struct {
 	ReviewLink           string
 	Corrupted            bool
 	CorruptedAt          int
+	Malformed            string
+	MalformedAt          int
 	Outline              []readmeOutline
 }
 
@@ -201,6 +213,7 @@ type readmeOutline struct {
 	Index     int
 	Summary   string
 	Corrupted bool
+	Malformed bool
 }
 
 func ShortcutREADME(w *shortcuts.Workflow) ([]byte, error) {
@@ -229,6 +242,8 @@ func ShortcutREADMEWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, err
 		ShortcutHref:         (&url.URL{Path: shortcutFile(opts.ShortcutFile)}).String(),
 		ReviewLink:           reviewLink(w, opts.SiteURL),
 		CorruptedAt:          -1,
+		Malformed:            built.Malformed,
+		MalformedAt:          built.MalformedAt,
 	}
 	switch {
 	case built.Corrupted:
@@ -244,6 +259,7 @@ func ShortcutREADMEWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, err
 			Index:     entry.Index,
 			Summary:   entry.Summary,
 			Corrupted: entry.Corrupted,
+			Malformed: entry.Malformed,
 		})
 	}
 

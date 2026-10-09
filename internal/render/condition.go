@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/catalog"
@@ -67,12 +68,20 @@ func (r *reviewer) conditionGroup(group map[string]any) []node {
 }
 
 func (r *reviewer) singleCondition(params map[string]any, consumed map[string]bool) []node {
-	code, _ := intAt(params, "WFCondition")
-	operator, _ := r.cat.Condition(code)
+	code, numeric := intAt(params, "WFCondition")
+	operator := r.operatorName(code)
+	if !numeric {
+		code = -1
+		operator, _ = formatScalar(params["WFCondition"])
+	}
 
 	out := []node{boxOf(r.value(params["WFInput"]))}
 	consumed["WFInput"] = true
-	out = append(out, text(" "), box(text(operator)))
+	if numeric {
+		out = append(out, text(" "), box(text(operator)))
+	} else {
+		out = append(out, text(" "), flagged(box(visibleText(operator)...)))
+	}
 
 	switch code {
 	case conditionHasAnyValue, conditionHasNoValue, conditionIsToday:
@@ -117,6 +126,13 @@ func (r *reviewer) singleCondition(params map[string]any, consumed map[string]bo
 	return append(out, text(" "), boxOf(operands))
 }
 
+func (r *reviewer) operatorName(code int) string {
+	if operator, ok := r.cat.Condition(code); ok && operator != "" {
+		return operator
+	}
+	return "operator " + strconv.Itoa(code)
+}
+
 func (r *reviewer) predicate(v any) []node {
 	value, ok := v.(map[string]any)
 	if !ok {
@@ -153,7 +169,7 @@ func (r *reviewer) filter(filter map[string]any) []node {
 	property := stringOr(filter, "Property")
 	values, _ := filter["Values"].(map[string]any)
 	operatorCode, _ := intAt(filter, "Operator")
-	operator, _ := r.cat.Condition(operatorCode)
+	operator := r.operatorName(operatorCode)
 
 	shape := r.filterShape(property)
 	if shape.Type == "Bool" && operatorCode != conditionHasAnyValue && operatorCode != conditionHasNoValue {

@@ -121,6 +121,9 @@ func (r *reviewer) renderAction(in actionInput) *item {
 	if in.Corrupted {
 		title = []node{flagged(append(title, text(" (corrupted block)"))...)}
 	}
+	if in.Malformed != "" {
+		title = []node{flagged(append(title, text(" ("+in.Malformed+")"))...)}
+	}
 	title = append(title, r.blockLink(in)...)
 
 	label := append([]node{text(strconv.Itoa(in.Index) + " ")}, title...)

@@ -227,7 +227,7 @@ table.shortcuts tbody tr:nth-child(odd) {
 </head>
 <body>
 
-<button class="button gParams" id="mheader"><b>Malformed Values</b> (7 actions, iOS 18) <span class="magic flagged" data-target="6">corrupted</span></button><div class="content">
+<button class="button gParams" id="mheader"><b>Malformed Values</b> (7 actions, iOS 18) <span class="magic flagged" data-target="1">corrupted</span></button><div class="content">
 <div class="row"><div class="col1">Colour</div><div class="col2"><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</div></div>
 <div class="row"><div class="col1">Identifier</div><div class="col2">11111111-2222-3333-4444-555555555555</div></div>
 <div class="row"><div class="col1">Created</div><div class="col2">2025-03-01 09:30 UTC</div></div>
@@ -236,19 +236,18 @@ table.shortcuts tbody tr:nth-child(odd) {
 <div class="row"><div class="col1">Client version</div><div class="col2">3216</div></div>
 <div class="row"><div class="col1">Minimum client version</div><div class="col2">3010</div></div>
 <div class="row"><div class="col1">Workflow types</div><div class="col2">ActionExtension, NCWidget, WFWorkflowTypeShowInSearch</div></div>
-<div class="row"><div class="col1">Control flow</div><div class="col2">the block opened by action 6 is never closed</div></div>
+<div class="row"><div class="col1">Malformed value</div><div class="col2">action 1: WFCondition is the string &#34;Equals&#34;, not an operator code; WFControlFlowMode is the string &#34;0&#34;, not an integer</div></div>
 </div>
 <button class="button gYellow" id="m0">0 Text　» <span class="magic" data-target="1">1</span> <span class="magic" data-target="4">4</span></button><div class="content">
 <div class="col2">value</div>
 </div>
-<button class="button gGray nonbottom" id="m1">1 If <span class="box"><span class="magic" data-target="0"><b>[0 Text]</b></span></span> <span class="box">&lt;</span> <span class="box">expected value</span></button><div class="content contentloop">
+<button class="button gGray nonbottom" id="m1">1 <span class="flagged">If <span class="box"><span class="magic" data-target="0"><b>[0 Text]</b></span></span> <span class="flagged"><span class="box">Equals</span></span> <span class="box">expected value</span> (WFCondition is the string &#34;Equals&#34;, not an operator code; WFControlFlowMode is the string &#34;0&#34;, not an integer)</span></button><div class="content contentloop">
 <button class="gGray inside" id="m2">2 Nothing</button>
-<button class="button gGray nonbottom inside" id="m3">3 If </button><div class="content contentloop dotted inside">
-<button class="gGray nonbottom inside" id="m4">4 If <span class="box"><span class="magic" data-target="0"><b>[0 Text]</b></span></span> <span class="box"></span> <span class="box">operand</span></button>
-<button class="gGray nontop inside" id="m5">5 End If</button>
-<button class="gGray nonbottom inside" id="m6">6 If </button>
 </div>
-</div>
+<button class="gGray nontop" id="m3">3 <span class="flagged">End If (WFControlFlowMode is the string &#34;2&#34;, not an integer)</span></button>
+<button class="gGray nonbottom" id="m4">4 If <span class="box"><span class="magic" data-target="0"><b>[0 Text]</b></span></span> <span class="box">operator 42</span> <span class="box">operand</span></button>
+<button class="gGray nontop" id="m5">5 End If</button>
+<button class="gGray" id="m6">6 <span class="flagged">If  (WFControlFlowMode &#34;start&#34; is not a number)</span></button>
 <script>
 for (const button of document.getElementsByClassName('button')) {
 	button.addEventListener('click', function () {
