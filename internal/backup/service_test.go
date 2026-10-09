@@ -149,3 +149,24 @@ func TestLoadFromRepoKeepsWidgetHiddenShortcutsHidden(t *testing.T) {
 		})
 	}
 }
+
+func TestFindSecretsScansImportQuestions(t *testing.T) {
+	w := &shortcuts.Workflow{
+		Actions: []any{},
+		ImportQuestions: []any{map[string]any{
+			"ActionIndex":  uint64(3),
+			"Category":     "Parameter",
+			"ParameterKey": "WFTextActionText",
+			"Text":         "Paste your OpenAI key",
+			"DefaultValue": "sk-proj-AbCdEf0123456789XyZwVuTsRqPoNmLkJi",
+		}},
+	}
+
+	findings := findSecrets(w)
+	if len(findings) != 1 {
+		t.Fatalf("findSecrets() = %v, want one finding", findings)
+	}
+	if findings[0].ActionIndex != 3 {
+		t.Errorf("ActionIndex = %d, want 3", findings[0].ActionIndex)
+	}
+}

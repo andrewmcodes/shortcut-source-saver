@@ -149,7 +149,7 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 		return result
 	}
 
-	if findings := scan.Scan(w.Actions); len(findings) > 0 && !s.opts.AllowSecrets {
+	if findings := findSecrets(w); len(findings) > 0 && !s.opts.AllowSecrets {
 		result.Outcome = tui.OutcomeFailed
 		result.Detail = fmt.Sprintf("%d possible credential(s); re-run with --allow-secrets to override", len(findings))
 		result.Err = fmt.Errorf("%w in %q:\n%s", ErrSecretsFound, sc.Name, scan.Summary(findings))
@@ -223,6 +223,20 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 		result.Detail = "no changes"
 	}
 	return result
+}
+
+func findSecrets(w *shortcuts.Workflow) []scan.Finding {
+	findings := scan.Scan(w.Actions)
+	for _, raw := range w.ImportQuestions {
+		index := -1
+		if q, ok := raw.(map[string]any); ok {
+			if n, ok := intValue(q["ActionIndex"]); ok {
+				index = n
+			}
+		}
+		findings = append(findings, scan.ScanValue(index, "import question", raw)...)
+	}
+	return findings
 }
 
 func (s *Service) track(path, name string) {
@@ -486,4 +500,18 @@ func arrayValue(v any) []any {
 func boolValue(v any) bool {
 	b, ok := v.(bool)
 	return ok && b
+}
+
+func intValue(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case uint64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	}
+	return 0, false
 }
