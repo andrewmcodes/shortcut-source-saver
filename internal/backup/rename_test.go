@@ -38,9 +38,23 @@ func TestARenamedShortcutMovesItsDirectoryAndKeepsItsSignedFile(t *testing.T) {
 	repo := seedRenamedShortcut(t)
 	renamed := []fixtureRow{{pk: 1, name: "Bar", id: renamedID}}
 
+	oldPage := filepath.Join(repo, "docs", "shortcuts", "foo.html")
+	if err := os.MkdirAll(filepath.Dir(oldPage), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldPage, []byte("old page"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	svc := signingService(t, repo, renamed)
 	backUp(t, svc, renamedID)
 	reconcile(t, svc)
+	if _, err := svc.BuildSite(); err != nil {
+		t.Fatalf("BuildSite: %v", err)
+	}
+	if exists(oldPage) || !exists(filepath.Join(repo, "docs", "shortcuts", "bar.html")) {
+		t.Error("the site still has the old page, or lacks the new one")
+	}
 
 	root := filepath.Join(repo, ShortcutsDir)
 	if exists(filepath.Join(root, "foo")) {
