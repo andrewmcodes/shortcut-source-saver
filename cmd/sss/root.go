@@ -57,6 +57,7 @@ func newRootCommand() *cobra.Command {
 		backup,
 		newBuildCommand(flags),
 		newInitCommand(flags),
+		newExportCommand(flags),
 	)
 	addOutputFlags(backup, flags)
 	markOutputExclusive(root)
