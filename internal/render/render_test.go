@@ -642,6 +642,22 @@ func TestSiteIndexMarksFlaggedShortcuts(t *testing.T) {
 	}
 }
 
+func TestDarkIconColours(t *testing.T) {
+	for hex, want := range map[string]bool{
+		"#000000": true,
+		"#1C1C1E": true,
+		"#A9A9A9": false,
+		"#B4B2A9": false,
+		"#3871DE": false,
+		"#FFD426": false,
+		"black":   false,
+	} {
+		if got := isDarkColor(hex); got != want {
+			t.Errorf("isDarkColor(%q) = %v, want %v", hex, got, want)
+		}
+	}
+}
+
 func TestSiteMakesNoExternalRequests(t *testing.T) {
 	site, err := Site([]Entry{{Workflow: fixtureNamed(t, "linear")}}, SiteOptions{})
 	if err != nil {
@@ -732,7 +748,7 @@ func TestMagicVariableCrossReferences(t *testing.T) {
 	if !strings.Contains(page, `<span class="flagged"><span class="var"><b>[? Vanished Output]</b>`) {
 		t.Error("a dangling OutputUUID should be flagged")
 	}
-	consumers := `» <span class="magic" data-target="1">1</span> <span class="magic" data-target="3">3</span>`
+	consumers := `» <span class="magic" data-target="1" role="link" tabindex="0">1</span> <span class="magic" data-target="3" role="link" tabindex="0">3</span>`
 	if !strings.Contains(page, consumers) {
 		t.Error("the producer should list every action that consumes its output")
 	}
@@ -856,7 +872,7 @@ func TestWrappedVariableIsUnwrapped(t *testing.T) {
 		t.Fatalf("WebReview: %v", err)
 	}
 	for _, want := range []string{
-		`<span class="magic" data-target="0"><b>[0 URL Encoded Text]</b></span>`,
+		`<span class="magic" data-target="0" role="link" tabindex="0"><b>[0 URL Encoded Text]</b></span>`,
 		`<span class="var"><b>[Shortcut Input]</b></span>`,
 		`<span class="var"><b>[Thing]</b></span>`,
 	} {

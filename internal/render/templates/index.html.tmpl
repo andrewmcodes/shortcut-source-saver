@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="cards" id="shortcuts">
 {{- range .Rows}}
 <a class="shortcut-card" href="{{.Href}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}>
-<div class="card-top"><span class="shortcut-icon" style="--icon: {{.Color}}" title="{{.ColorText}}">{{template "icon-layers"}}</span>{{with .MinimumOS}}<span class="category">iOS {{.}}</span>{{end}}</div>
+<div class="card-top"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}" title="{{.ColorText}}">{{template "icon-layers"}}</span>{{with .MinimumOS}}<span class="category">iOS {{.}}</span>{{end}}</div>
 <h3>{{.Name}}</h3>
 <div class="card-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .ModifiedDate}}<span>Modified {{.}}</span>{{end}}</div>
 {{- if .Flagged}}

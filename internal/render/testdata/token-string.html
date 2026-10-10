@@ -6,6 +6,7 @@
 <meta name="format-detection" content="telephone=no,date=no">
 <title>Token String Splicing</title>
 <style>
+/*! Radix Colors v3.0.0 | MIT License | Copyright (c) 2021-2022 Modulz, Copyright (c) 2022-present WorkOS | https://github.com/radix-ui/colors */
 :root {
   --slate-1: #fcfcfd;
   --slate-2: #f9f9fb;
@@ -637,6 +638,11 @@ kbd {
 	color: color-mix(in srgb, var(--icon) 58%, var(--text));
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--icon) 22%, transparent);
 }
+.shortcut-icon.dark-icon {
+	background: var(--slate-4);
+	color: var(--slate-12);
+	box-shadow: inset 0 0 0 1px var(--slate-7);
+}
 
 .category {
 	font-size: 11px;
@@ -1096,6 +1102,12 @@ span.magic {
 	text-underline-offset: 3px;
 }
 span.magic:hover { text-decoration-style: solid; }
+span.magic:focus-visible {
+	outline: 2px solid var(--cyan-8);
+	outline-offset: 2px;
+	border-radius: 4px;
+	text-decoration-style: solid;
+}
 
 .flagged { color: var(--danger); font-weight: 600; }
 .flagged span.var,
@@ -1144,6 +1156,15 @@ document.addEventListener('DOMContentLoaded', function () {
 			event.stopPropagation();
 			reveal(this.dataset.target);
 		});
+		link.addEventListener('keydown', function (event) {
+			if (event.key !== 'Enter' && event.key !== ' ') { return; }
+			event.preventDefault();
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keyup', function (event) {
+			if (event.key === ' ') { event.preventDefault(); }
+		});
 	}
 
 	function reveal(index) {
@@ -1156,6 +1177,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			content = content.parentElement.closest('.content');
 		}
 		setTimeout(function () {
+			target.focus({preventScroll: true});
 			target.scrollIntoView({block: 'center', behavior: 'smooth'});
 			target.classList.add('flash');
 			setTimeout(function () { target.classList.remove('flash'); }, 1600);
@@ -1213,14 +1235,14 @@ document.addEventListener('DOMContentLoaded', function () {
 </aside>
 <section class="actions" aria-labelledby="actions-heading">
 <div class="section-heading"><h2 id="actions-heading">Actions</h2><span>In execution order</span></div>
-<button class="button gYellow" id="m0"><span class="step">0</span>Text　» <span class="magic" data-target="2">2</span></button><div class="content">
+<button class="button gYellow" id="m0"><span class="step">0</span>Text　» <span class="magic" data-target="2" role="link" tabindex="0">2</span></button><div class="content">
 <div class="col2">alpha</div>
 </div>
-<button class="button gYellow" id="m1"><span class="step">1</span>Text　» <span class="magic" data-target="2">2</span></button><div class="content">
+<button class="button gYellow" id="m1"><span class="step">1</span>Text　» <span class="magic" data-target="2" role="link" tabindex="0">2</span></button><div class="content">
 <div class="col2">beta</div>
 </div>
 <button class="button gYellow" id="m2"><span class="step">2</span>Show Content</button><div class="content">
-<div class="col2">ab<span class="magic" data-target="0"><b>[0 First Text]</b></span>cdefgh<span class="magic" data-target="1"><b>[1 Second Text]</b></span>i</div>
+<div class="col2">ab<span class="magic" data-target="0" role="link" tabindex="0"><b>[0 First Text]</b></span>cdefgh<span class="magic" data-target="1" role="link" tabindex="0"><b>[1 Second Text]</b></span>i</div>
 </div>
 </section>
 </div>

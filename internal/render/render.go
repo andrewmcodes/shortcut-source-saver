@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"math"
 	"net/url"
 	"path"
 	"sort"
@@ -93,6 +94,7 @@ type pageHeader struct {
 	Modified    string
 	Color       template.CSS
 	ColorText   string
+	DarkIcon    bool
 	Rows        []metaRow
 	Corrupted   bool
 	CorruptedAt int
@@ -129,6 +131,24 @@ func buildPage(w *shortcuts.Workflow, expandAll bool) *page {
 	}
 }
 
+const darkIconLuminance = 0.05
+
+func isDarkColor(hex string) bool {
+	value, err := strconv.ParseUint(strings.TrimPrefix(hex, "#"), 16, 32)
+	if err != nil || len(hex) != 7 {
+		return false
+	}
+	linear := func(channel uint64) float64 {
+		c := float64(channel) / 255
+		if c <= 0.04045 {
+			return c / 12.92
+		}
+		return math.Pow((c+0.055)/1.055, 2.4)
+	}
+	luminance := 0.2126*linear(value>>16&0xFF) + 0.7152*linear(value>>8&0xFF) + 0.0722*linear(value&0xFF)
+	return luminance < darkIconLuminance
+}
+
 func formatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
@@ -145,6 +165,7 @@ func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 		Modified:    formatDate(w.Modified),
 		Color:       template.CSS(color),
 		ColorText:   color,
+		DarkIcon:    isDarkColor(color),
 		CorruptedAt: -1,
 	}
 
@@ -410,6 +431,7 @@ type indexRow struct {
 	ModifiedSort string
 	Color        template.CSS
 	ColorText    string
+	DarkIcon     bool
 	Flagged      bool
 }
 
@@ -460,6 +482,7 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 			ModifiedSort: sortableTime(modified),
 			Color:        template.CSS(color),
 			ColorText:    color,
+			DarkIcon:     isDarkColor(color),
 			Flagged:      rendered.Header.Corrupted,
 		})
 	}

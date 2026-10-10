@@ -28,6 +28,15 @@ document.addEventListener('DOMContentLoaded', function () {
 			event.stopPropagation();
 			reveal(this.dataset.target);
 		});
+		link.addEventListener('keydown', function (event) {
+			if (event.key !== 'Enter' && event.key !== ' ') { return; }
+			event.preventDefault();
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keyup', function (event) {
+			if (event.key === ' ') { event.preventDefault(); }
+		});
 	}
 
 	function reveal(index) {
@@ -40,6 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			content = content.parentElement.closest('.content');
 		}
 		setTimeout(function () {
+			target.focus({preventScroll: true});
 			target.scrollIntoView({block: 'center', behavior: 'smooth'});
 			target.classList.add('flash');
 			setTimeout(function () { target.classList.remove('flash'); }, 1600);
@@ -61,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <section class="actions" aria-labelledby="actions-heading">
 <div class="section-heading"><h2 id="actions-heading">Actions</h2><span>In execution order</span></div>
 {{- with .Header}}{{if .Corrupted}}
-<p class="notice">{{template "icon-warning"}}<span>This shortcut is <span class="magic flagged" data-target="{{.CorruptedAt}}">corrupted at action {{.CorruptedAt}}</span>. The flagged rows under Details say why.</span></p>
+<p class="notice">{{template "icon-warning"}}<span>This shortcut is <span class="magic flagged" data-target="{{.CorruptedAt}}" role="link" tabindex="0">corrupted at action {{.CorruptedAt}}</span>. The flagged rows under Details say why.</span></p>
 {{- end}}{{end}}
 {{- template "items" .Items}}
 </section>

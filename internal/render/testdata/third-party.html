@@ -6,6 +6,7 @@
 <meta name="format-detection" content="telephone=no,date=no">
 <title>Third Party Actions</title>
 <style>
+/*! Radix Colors v3.0.0 | MIT License | Copyright (c) 2021-2022 Modulz, Copyright (c) 2022-present WorkOS | https://github.com/radix-ui/colors */
 :root {
   --slate-1: #fcfcfd;
   --slate-2: #f9f9fb;
@@ -637,6 +638,11 @@ kbd {
 	color: color-mix(in srgb, var(--icon) 58%, var(--text));
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--icon) 22%, transparent);
 }
+.shortcut-icon.dark-icon {
+	background: var(--slate-4);
+	color: var(--slate-12);
+	box-shadow: inset 0 0 0 1px var(--slate-7);
+}
 
 .category {
 	font-size: 11px;
@@ -1096,6 +1102,12 @@ span.magic {
 	text-underline-offset: 3px;
 }
 span.magic:hover { text-decoration-style: solid; }
+span.magic:focus-visible {
+	outline: 2px solid var(--cyan-8);
+	outline-offset: 2px;
+	border-radius: 4px;
+	text-decoration-style: solid;
+}
 
 .flagged { color: var(--danger); font-weight: 600; }
 .flagged span.var,
@@ -1144,6 +1156,15 @@ document.addEventListener('DOMContentLoaded', function () {
 			event.stopPropagation();
 			reveal(this.dataset.target);
 		});
+		link.addEventListener('keydown', function (event) {
+			if (event.key !== 'Enter' && event.key !== ' ') { return; }
+			event.preventDefault();
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keyup', function (event) {
+			if (event.key === ' ') { event.preventDefault(); }
+		});
 	}
 
 	function reveal(index) {
@@ -1156,6 +1177,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			content = content.parentElement.closest('.content');
 		}
 		setTimeout(function () {
+			target.focus({preventScroll: true});
 			target.scrollIntoView({block: 'center', behavior: 'smooth'});
 			target.classList.add('flash');
 			setTimeout(function () { target.classList.remove('flash'); }, 1600);
