@@ -133,7 +133,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 
 To browse the site without publishing it, open `docs/index.html` straight from disk; every link is relative, so no server or build step is needed.
 
-The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The details panel lists what the shortcut accepts and outputs, any questions it asks on import, which shortcuts it runs and which run it. Run Shortcut actions are matched to shortcuts in the backup by workflow identifier, then by name, and the dependency map draws the result, flagging calls to shortcuts that are not in the backup.
+The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The details panel lists what the shortcut accepts and outputs, any questions it asks on import, which shortcuts it runs and which run it. Run Shortcut actions are matched to shortcuts in the backup by workflow identifier, then by name, and the dependency map shows the result: search for a shortcut, or pick one from a list ranked by how connected each shortcut is, to see what runs it and what it runs, with calls to shortcuts that are not in the backup flagged.
 
 ## Secrets
 
