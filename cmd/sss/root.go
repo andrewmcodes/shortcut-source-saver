@@ -62,7 +62,7 @@ func newRootCommand() *cobra.Command {
 
 func addOutputFlag(cmd *cobra.Command, flags *globalFlags) {
 	cmd.Flags().StringVarP(&flags.outputDir, "output", "o", "",
-		"write into this directory instead of the backup repository (no config or git needed; never commits)")
+		"write into `DIR` instead of the backup repository (no config or git needed; never commits)")
 	_ = cmd.MarkFlagDirname("output")
 }
 

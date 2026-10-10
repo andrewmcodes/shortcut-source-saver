@@ -128,8 +128,8 @@ func (s *session) finish(ctx context.Context, results []tui.Result) error {
 	}
 
 	if s.writesToOutputDir() {
-		fmt.Printf("\nWrote %d file(s) under %s\n",
-			len(s.service.TouchedPaths())+len(sitePaths), s.cfg.RepoPath)
+		fmt.Printf("\nBacked up to %s (%d written, %d unchanged)\n",
+			s.cfg.RepoPath, countBy(results, tui.OutcomeWritten), countBy(results, tui.OutcomeUnchanged))
 		return reportFailures(results)
 	}
 
