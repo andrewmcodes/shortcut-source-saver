@@ -12,72 +12,6 @@ try {
 } catch (error) {}
 
 document.addEventListener('DOMContentLoaded', function () {
-	const focus = document.getElementById('focus');
-	const status = document.getElementById('map-status');
-	const groups = Array.from(document.getElementsByClassName('map-group'));
-	const rows = Array.from(document.getElementsByClassName('relationship-row'));
-	const words = function (value) { return value ? value.split(' ') : []; };
-
-	function trace(svg, key) {
-		const linked = new Set(key ? [key] : []);
-		svg.classList.toggle('tracing', !!key);
-		for (const edge of svg.querySelectorAll('.edge')) {
-			const active = !!key && (edge.dataset.from === key || edge.dataset.to === key);
-			edge.classList.toggle('traced', active);
-			if (active) { linked.add(edge.dataset.from); linked.add(edge.dataset.to); }
-		}
-		for (const node of svg.querySelectorAll('[data-node]')) {
-			node.classList.toggle('traced', linked.has(node.dataset.node));
-			node.classList.toggle('focused', !!focus.value && node.dataset.node === focus.value);
-		}
-	}
-
-	function resting(svg) {
-		return words(svg.parentElement.dataset.members).includes(focus.value) ? focus.value : '';
-	}
-
-	for (const svg of document.getElementsByClassName('dependency-svg')) {
-		const hover = function (event) {
-			const node = event.target.closest('[data-node]');
-			if (node) { trace(svg, node.dataset.node); }
-		};
-		svg.addEventListener('pointerover', hover);
-		svg.addEventListener('focusin', hover);
-		svg.addEventListener('pointerleave', function () { trace(svg, resting(svg)); });
-		svg.addEventListener('focusout', function () { trace(svg, resting(svg)); });
-	}
-
-	function apply() {
-		const key = focus.value;
-		for (const group of groups) {
-			group.hidden = !!key && !words(group.dataset.members).includes(key);
-			trace(group.querySelector('svg'), group.hidden ? '' : key);
-		}
-		for (const row of rows) {
-			row.hidden = !!key && !words(row.dataset.related).includes(key);
-		}
-		status.textContent = key ? 'Showing the shortcuts connected to ' + focus.selectedOptions[0].textContent : 'Showing all connections';
-	}
-
-	function fromHash() {
-		const key = window.location.hash.startsWith('#map-') ? decodeURIComponent(window.location.hash.slice(5)) : '';
-		if (!Array.from(focus.options).some(function (option) { return option.value === key; })) { return; }
-		focus.value = key;
-		apply();
-		const node = document.getElementById('map-' + key);
-		if (node) { node.scrollIntoView({block: 'center', inline: 'center'}); }
-	}
-
-	focus.addEventListener('change', function () {
-		try {
-			window.history.replaceState(null, '', focus.value ? '#map-' + focus.value : window.location.pathname + window.location.search);
-		} catch (error) {}
-		apply();
-	});
-	window.addEventListener('hashchange', fromHash);
-	document.getElementById('map-controls').hidden = false;
-	fromHash();
-
 	const themeButton = document.getElementById('theme');
 	const themeNames = {auto: 'automatic', dark: 'dark', light: 'light'};
 	const nextTheme = {auto: 'dark', dark: 'light', light: 'auto'};
@@ -96,6 +30,319 @@ document.addEventListener('DOMContentLoaded', function () {
 		labelTheme();
 	});
 	labelTheme();
+
+	const list = document.getElementById('rank-list');
+	if (!list) { return; }
+	const rows = Array.from(list.children);
+	const graph = new Map();
+	const glyphs = document.getElementById('focus-glyphs').content;
+	const search = document.getElementById('focus-search');
+	const options = document.getElementById('focus-options');
+	const board = document.getElementById('focus-graph');
+	const edges = document.getElementById('focus-edges');
+	const centre = document.getElementById('focus-centre');
+	const status = document.getElementById('focus-status');
+	const title = document.getElementById('focus-title');
+	const count = document.getElementById('rank-count');
+	const empty = document.getElementById('rank-empty');
+	const columns = {callers: document.getElementById('focus-callers'), runs: document.getElementById('focus-runs')};
+	const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const svg = 'http://www.w3.org/2000/svg';
+	const limit = 4;
+	let matches = [];
+	let active = -1;
+	let moveFocus = false;
+
+	const plural = function (n, noun) { return n + ' ' + noun + (n === 1 ? '' : 's'); };
+	const hashFor = function (key) { return '#map-' + encodeURIComponent(key); };
+
+	function el(tag, className, text) {
+		const node = document.createElement(tag);
+		if (className) { node.className = className; }
+		if (text) { node.textContent = text; }
+		return node;
+	}
+
+	function glyph(name) {
+		return glyphs.querySelector('[data-glyph="' + name + '"]').firstElementChild.cloneNode(true);
+	}
+
+	function label(node) {
+		const text = el('span', 'focus-text');
+		text.append(el('strong', '', node.name), el('small', '', node.meta));
+		return text;
+	}
+
+	for (const row of rows) {
+		const link = row.querySelector('.rank-link');
+		const node = {
+			key: row.dataset.key,
+			rank: rows.indexOf(row),
+			name: row.querySelector('.rank-text strong').textContent,
+			href: link.getAttribute('href'),
+			tile: row.querySelector('.shortcut-icon'),
+			meta: row.querySelector('.rank-meta').textContent,
+			warning: row.querySelector('.rank-warning'),
+			row: row,
+			link: link,
+			callers: [],
+			runs: [],
+			self: false
+		};
+		for (const item of row.querySelectorAll('[data-relation]')) {
+			if (item.dataset.kind === 'self') { node.self = true; continue; }
+			const name = item.querySelector('.relation-name');
+			node[item.dataset.relation].push({key: item.dataset.key || '', kind: item.dataset.kind || 'shortcut', name: name ? name.textContent : '', note: item.dataset.note || ''});
+		}
+		graph.set(node.key, node);
+		link.href = hashFor(node.key);
+		row.removeAttribute('id');
+		row.querySelector('.rank-details').remove();
+	}
+	const nodes = Array.from(graph.values());
+
+	function card(entry) {
+		const target = entry.key ? graph.get(entry.key) : null;
+		if (target) {
+			const link = el('a', 'focus-node');
+			link.href = hashFor(target.key);
+			link.append(target.tile.cloneNode(true), label(target));
+			return link;
+		}
+		const box = el('div', 'focus-node ' + entry.kind);
+		const icon = el('span', 'focus-glyph');
+		icon.append(glyph(entry.kind));
+		box.append(icon, label({name: entry.name, meta: entry.note}));
+		return box;
+	}
+
+	function fill(side, entries) {
+		const target = columns[side];
+		const column = target.parentElement;
+		target.replaceChildren();
+		column.classList.remove('expanded');
+		entries.forEach(function (entry, index) {
+			const item = el('li', index >= limit ? 'focus-more' : '');
+			const node = card(entry);
+			node.dataset.edge = side + '-' + index;
+			if (!entry.key) { node.dataset.kind = entry.kind; }
+			item.append(node);
+			target.append(item);
+		});
+		column.querySelector('.column-count').textContent = entries.length;
+		column.querySelector('.column-empty').hidden = entries.length > 0;
+		const more = column.querySelector('.focus-expand');
+		more.hidden = entries.length <= limit;
+		more.textContent = 'Show ' + (entries.length - limit) + ' more';
+		board.classList.toggle('has-' + side, entries.length > 0);
+	}
+
+	function edge(className, points, arrow, key) {
+		const path = document.createElementNS(svg, 'path');
+		const sx = points[0], sy = points[1], ex = points[2], ey = points[3];
+		const bend = Math.max(8, (ex - sx) / 2);
+		path.setAttribute('class', className);
+		path.setAttribute('d', 'M' + sx + ' ' + sy + ' C' + (sx + bend) + ' ' + sy + ' ' + (ex - bend) + ' ' + ey + ' ' + ex + ' ' + ey);
+		if (arrow) { path.setAttribute('marker-end', 'url(#focus-arrow)'); }
+		if (key) { path.dataset.edge = key; }
+		edges.append(path);
+	}
+
+	function drawEdges() {
+		for (const path of edges.querySelectorAll('.edge')) { path.remove(); }
+		const main = document.getElementById('focus-current');
+		if (!main || getComputedStyle(edges).display === 'none') { return; }
+		const box = board.getBoundingClientRect();
+		const focus = main.getBoundingClientRect();
+		const mid = focus.top - box.top + focus.height / 2;
+		const left = focus.left - box.left;
+		const right = focus.right - box.left;
+		edges.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+		for (const side of ['callers', 'runs']) {
+			const visible = Array.from(columns[side].querySelectorAll('.focus-node')).filter(function (node) { return node.offsetParent !== null; });
+			if (!visible.length) { continue; }
+			const incoming = side === 'callers';
+			const junction = incoming ? left - 22 : right + 22;
+			for (const node of visible) {
+				const r = node.getBoundingClientRect();
+				const middle = r.top - box.top + r.height / 2;
+				const className = 'edge' + (node.dataset.kind ? ' ' + node.dataset.kind : '');
+				if (incoming) {
+					edge(className, [r.right - box.left, middle, junction, mid], false, node.dataset.edge);
+				} else {
+					edge(className, [junction, mid, r.left - box.left - 3, middle], true, node.dataset.edge);
+				}
+			}
+			if (incoming) {
+				edge('edge trunk', [junction, mid, left - 3, mid], true, '');
+			} else {
+				edge('edge trunk', [right, mid, junction, mid], false, '');
+			}
+		}
+	}
+
+	function light(event) {
+		const node = event.type === 'pointerleave' ? null : event.target.closest('[data-edge]');
+		for (const path of edges.querySelectorAll('.edge')) {
+			path.classList.toggle('lit', !!node && path.dataset.edge === node.dataset.edge);
+		}
+	}
+
+	function focusOn(node) {
+		centre.replaceChildren();
+		const main = el('a', 'focus-node focus-current');
+		main.id = 'focus-current';
+		main.href = node.href;
+		const open = el('span', 'focus-open', 'Open shortcut');
+		open.append(glyph('chevron'));
+		main.append(node.tile.cloneNode(true), label(node), open);
+		centre.append(main);
+		const badges = el('div', 'focus-badges');
+		if (node.self) {
+			const badge = el('span', 'focus-badge');
+			badge.append(glyph('repeat'), document.createTextNode('Runs itself'));
+			badges.append(badge);
+		}
+		if (node.warning) {
+			const badge = node.warning.cloneNode(true);
+			badge.className = 'focus-badge warning';
+			badges.append(badge);
+		}
+		if (badges.childElementCount) { centre.append(badges); }
+		fill('callers', node.callers);
+		fill('runs', node.runs);
+		for (const other of nodes) {
+			const current = other === node;
+			other.row.classList.toggle('current', current);
+			if (current) { other.link.setAttribute('aria-current', 'true'); } else { other.link.removeAttribute('aria-current'); }
+		}
+		title.textContent = 'Connections of ' + node.name;
+		status.textContent = node.name + ': ' + node.meta;
+		drawEdges();
+	}
+
+	function keyFromHash() {
+		if (window.location.hash.indexOf('#map-') !== 0) { return ''; }
+		try { return decodeURIComponent(window.location.hash.slice(5)); } catch (error) { return ''; }
+	}
+
+	function reveal(element) {
+		const r = element.getBoundingClientRect();
+		if (r.top < 0 || r.bottom > window.innerHeight) {
+			element.scrollIntoView({block: 'center', behavior: reduced.matches ? 'auto' : 'smooth'});
+		}
+	}
+
+	function fromHash() {
+		const moved = moveFocus;
+		moveFocus = false;
+		focusOn(graph.get(keyFromHash()) || nodes[0]);
+		if (moved) {
+			const main = document.getElementById('focus-current');
+			main.focus({preventScroll: true});
+			reveal(main);
+		}
+	}
+
+	function choose(key) {
+		search.value = '';
+		filter();
+		if (window.location.hash === hashFor(key)) { fromHash(); } else { window.location.hash = hashFor(key); }
+	}
+
+	function renderOptions() {
+		options.replaceChildren();
+		matches.forEach(function (node, index) {
+			const option = el('li', 'focus-option');
+			option.id = 'focus-option-' + index;
+			option.dataset.key = node.key;
+			option.setAttribute('role', 'option');
+			option.setAttribute('aria-selected', index === active ? 'true' : 'false');
+			option.append(node.tile.cloneNode(true), label(node));
+			options.append(option);
+		});
+		const open = matches.length > 0;
+		options.hidden = !open;
+		search.setAttribute('aria-expanded', open ? 'true' : 'false');
+		if (open && active >= 0) { search.setAttribute('aria-activedescendant', 'focus-option-' + active); } else { search.removeAttribute('aria-activedescendant'); }
+	}
+
+	function filter() {
+		const query = search.value.trim().toLowerCase();
+		const hits = nodes.filter(function (node) { return node.name.toLowerCase().includes(query); });
+		for (const node of nodes) { node.row.hidden = !hits.includes(node); }
+		count.textContent = query ? hits.length + ' of ' + plural(nodes.length, 'shortcut') : plural(nodes.length, 'shortcut');
+		empty.hidden = hits.length > 0;
+		const starts = function (node) { return node.name.toLowerCase().startsWith(query) ? 0 : 1; };
+		matches = query && document.activeElement === search ? hits.slice().sort(function (a, b) { return starts(a) - starts(b) || a.rank - b.rank; }).slice(0, 8) : [];
+		active = matches.length ? 0 : -1;
+		renderOptions();
+	}
+
+	search.addEventListener('input', filter);
+	search.addEventListener('focus', filter);
+	search.addEventListener('blur', function () { matches = []; renderOptions(); });
+	search.addEventListener('keydown', function (event) {
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			if (!matches.length) { return; }
+			event.preventDefault();
+			active = (active + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
+			renderOptions();
+			options.children[active].scrollIntoView({block: 'nearest'});
+		} else if (event.key === 'Enter') {
+			if (!matches.length) { return; }
+			event.preventDefault();
+			choose(matches[Math.max(active, 0)].key);
+		} else if (event.key === 'Escape') {
+			if (matches.length) {
+				event.preventDefault();
+				matches = [];
+				renderOptions();
+			} else if (search.value) {
+				event.preventDefault();
+				search.value = '';
+				filter();
+			}
+		}
+	});
+	options.addEventListener('mousedown', function (event) { event.preventDefault(); });
+	options.addEventListener('click', function (event) {
+		const option = event.target.closest('[data-key]');
+		if (option) { choose(option.dataset.key); }
+	});
+	document.addEventListener('keydown', function (event) {
+		const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName);
+		if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
+			event.preventDefault();
+			search.focus();
+		}
+	});
+	document.addEventListener('click', function (event) {
+		const link = event.target.closest('a[href^="#map-"]');
+		if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
+		moveFocus = true;
+		if (link.getAttribute('href') === window.location.hash) {
+			event.preventDefault();
+			fromHash();
+		}
+	});
+	for (const button of document.getElementsByClassName('focus-expand')) {
+		button.addEventListener('click', function () {
+			button.parentElement.classList.add('expanded');
+			button.hidden = true;
+			drawEdges();
+		});
+	}
+	board.addEventListener('pointerover', light);
+	board.addEventListener('pointerleave', light);
+	board.addEventListener('focusin', light);
+	window.addEventListener('hashchange', fromHash);
+	new ResizeObserver(drawEdges).observe(board);
+	document.getElementById('focus-tools').hidden = false;
+	document.getElementById('focus-card').hidden = false;
+	list.classList.add('interactive');
+	filter();
+	fromHash();
 });
 </script>
 </head>
@@ -111,47 +358,59 @@ document.addEventListener('DOMContentLoaded', function () {
 <main>
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg> All shortcuts</a><span aria-hidden="true">/</span><span>Dependency map</span></nav>
 <div class="page-heading map-heading"><div><span class="eyebrow">Follow the connections</span><h1>Dependency map</h1><p>How the shortcuts in this backup run each other through Run Shortcut actions: 3 connected, 0 standalone, 1 missing reference, 1 chosen at run time.</p></div><span class="badge">Workflow-linked</span></div>
-<div class="graph-controls" id="map-controls" hidden><label class="graph-filter"><span>Focus on</span><select id="focus"><option value="">All connections</option><option value="caller">Caller</option><option value="helper">Helper</option><option value="utility">Utility</option></select></label></div>
-<p class="sr-only" id="map-status" role="status" aria-live="polite"></p>
-<div class="graph-legend"><span><i class="legend-line"></i>Runs shortcut</span><span><i class="legend-line missing"></i>Missing reference</span><span><i class="legend-line dynamic"></i>Chosen at run time</span><span>Calls flow left to right</span><a class="text-link" href="#relationships-heading">Skip to the relationship list</a></div>
-<svg class="map-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
-<div class="map-groups">
-<section class="map-group" data-members="caller helper utility">
-<svg class="dependency-svg" width="862" height="306" viewBox="0 0 862 306" role="group" aria-label="Dependencies between Caller and 2 other shortcuts">
-<text class="column-label" x="22" y="26">Callers</text>
-<text class="column-label" x="328" y="26">Building blocks</text>
-<text class="column-label" x="634" y="26">Called shortcuts</text>
-<path class="edge" data-from="caller" data-to="caller" d="M170 194 L170 208 L206 208 L206 194" marker-end="url(#arrow)"><title>Caller runs itself</title></path>
-<path class="edge" data-from="caller" data-to="helper" d="M230 142 L260 142 L260 133 L326 133" marker-end="url(#arrow)"><title>Caller runs Helper · 3 calls</title></path>
-<path class="edge" data-from="caller" data-to="utility" d="M230 163 L268 163 L268 200 L326 200 L536 200 L574 200 L574 85 L632 85" marker-end="url(#arrow)"><title>Caller runs Utility</title></path>
-<path class="edge dynamic" data-from="caller" data-to="dynamic-1" d="M230 173 L276 173 L276 220 L326 220 L536 220 L582 220 L582 163 L632 163" marker-end="url(#arrow)"><title>Caller runs a shortcut chosen at run time</title></path>
-<path class="edge missing" data-from="caller" data-to="missing-2" d="M230 183 L284 183 L284 240 L326 240 L536 240 L590 240 L590 251 L632 251" marker-end="url(#arrow)"><title>Caller runs Ghost, which is not in this backup</title></path>
-<path class="edge" data-from="helper" data-to="utility" d="M536 133 L566 133 L566 64 L632 64" marker-end="url(#arrow)"><title>Helper runs Utility</title></path>
-<a class="graph-node" id="map-caller" data-node="caller" href="shortcuts/caller.html" aria-label="Caller, 7 actions · recursive"><title>Caller</title><rect x="20" y="132" width="210" height="62" rx="12"></rect><circle class="dot" cx="42" cy="163" r="6" fill="#4F9BFF"></circle><text x="58" y="159">Caller</text><text class="node-subtitle" x="58" y="178">7 actions · recursive</text></a>
-<a class="graph-node" id="map-helper" data-node="helper" href="shortcuts/helper.html" aria-label="Helper, 1 action"><title>Helper</title><rect x="326" y="102" width="210" height="62" rx="12"></rect><circle class="dot" cx="348" cy="133" r="6" fill="#4F9BFF"></circle><text x="364" y="129">Helper</text><text class="node-subtitle" x="364" y="148">1 action</text></a>
-<a class="graph-node" id="map-utility" data-node="utility" href="shortcuts/utility.html" aria-label="Utility, 1 action"><title>Utility</title><rect x="632" y="44" width="210" height="62" rx="12"></rect><circle class="dot" cx="654" cy="75" r="6" fill="#4F9BFF"></circle><text x="670" y="71">Utility</text><text class="node-subtitle" x="670" y="90">1 action</text></a>
-<g class="graph-node dynamic-node" data-node="dynamic-1" role="img" aria-label="Chosen at run time, From a variable"><title>Chosen at run time</title><rect x="632" y="132" width="210" height="62" rx="12"></rect><circle class="dot" cx="654" cy="163" r="6"></circle><text x="670" y="159">Chosen at run time</text><text class="node-subtitle" x="670" y="178">From a variable</text></g>
-<g class="graph-node missing-node" data-node="missing-2" role="img" aria-label="Ghost, Missing shortcut"><title>Ghost</title><rect x="632" y="220" width="210" height="62" rx="12"></rect><circle class="dot" cx="654" cy="251" r="6"></circle><text x="670" y="247">Ghost</text><text class="node-subtitle" x="670" y="266">Missing shortcut</text></g>
-</svg>
+<div class="focus-tools" id="focus-tools" hidden>
+<div class="focus-search">
+<label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5"></path></svg><span class="sr-only">Find a connected shortcut</span><input id="focus-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="focus-options" placeholder="Find a connected shortcut" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
+<ul class="focus-options" id="focus-options" role="listbox" aria-label="Matching shortcuts" hidden></ul>
+</div>
+<div class="graph-legend" aria-hidden="true"><span><i class="legend-line"></i>Runs</span><span><i class="legend-line missing"></i>Missing</span><span><i class="legend-line dynamic"></i>Chosen at run time</span></div>
+</div>
+<section class="focus-card" id="focus-card" aria-labelledby="focus-title" hidden>
+<h2 class="sr-only" id="focus-title">Connections</h2>
+<div class="focus-graph" id="focus-graph">
+<svg class="focus-edges" id="focus-edges" aria-hidden="true" focusable="false"><defs><marker id="focus-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
+<div class="focus-column focus-callers"><h3>Called by <span class="column-count"></span></h3><ul id="focus-callers"></ul><p class="column-empty">Nothing in this backup runs it</p><button type="button" class="btn focus-expand" hidden></button></div>
+<div class="focus-arrow focus-arrow-in" aria-hidden="true"><svg width="14" height="30" viewBox="0 0 14 30" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 1v27m-5-6 5 6 5-6"></path></svg></div>
+<div class="focus-centre" id="focus-centre"></div>
+<div class="focus-arrow focus-arrow-out" aria-hidden="true"><svg width="14" height="30" viewBox="0 0 14 30" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 1v27m-5-6 5 6 5-6"></path></svg></div>
+<div class="focus-column focus-runs"><h3>Runs <span class="column-count"></span></h3><ul id="focus-runs"></ul><p class="column-empty">Runs no other shortcut</p><button type="button" class="btn focus-expand" hidden></button></div>
+</div>
 </section>
+<p class="sr-only" id="focus-status" role="status" aria-live="polite"></p>
+<template id="focus-glyphs"><span data-glyph="missing"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg></span><span data-glyph="dynamic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l10 10h4M3 17h4l3-3m4-4 3-3h4m-3-3 3 3-3 3m0 4 3 3-3 3"></path></svg></span><span data-glyph="repeat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4m14-5v1a4 4 0 0 1-4 4H3"></path></svg></span><span data-glyph="chevron"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"></path></svg></span></template>
+<section class="rank-section" aria-labelledby="rank-heading">
+<div class="section-heading rank-heading"><h2 id="rank-heading">Most connected</h2><span id="rank-count" role="status" aria-live="polite">3 shortcuts</span></div>
+<p class="rank-intro">Ranked by how many shortcuts run each one plus how many it runs.</p>
+<ol class="rank-list" id="rank-list">
+<li class="rank-row" id="map-caller" data-key="caller">
+<a class="rank-link" href="shortcuts/caller.html"><span class="rank-number">1</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Caller</strong><small class="rank-meta">0 callers · 4 runs · runs itself</small><small class="rank-warning"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg> 1 missing reference</small></span></a>
+<details class="rank-details"><summary>Callers and runs</summary>
+<div class="rank-relations">
+<div><h3>Called by</h3><p>Nothing in this backup runs it.</p></div>
+<div><h3>Runs</h3><ul><li data-relation="runs" data-key="helper"><a href="shortcuts/helper.html">Helper</a></li><li data-relation="runs" data-key="utility"><a href="shortcuts/utility.html">Utility</a></li><li class="relation-missing" data-relation="runs" data-kind="missing" data-note="Not in this backup"><span class="relation-name">Ghost</span> <small>Not in this backup</small></li><li class="relation-dynamic" data-relation="runs" data-kind="dynamic" data-note="From a variable"><span class="relation-name">Chosen at run time</span> <small>From a variable</small></li><li data-relation="runs" data-kind="self">Itself</li></ul></div>
 </div>
-<section class="relationship-list" aria-labelledby="relationships-heading">
-<h2 id="relationships-heading">Relationships</h2>
-<div class="relationship-row" data-related="caller helper utility">
-<a href="shortcuts/caller.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><strong>Caller</strong></a>
-<div><a class="chip" href="shortcuts/helper.html">Runs Helper</a><a class="chip" href="shortcuts/utility.html">Runs Utility</a><span class="chip">Runs itself</span><span class="chip chip-missing"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg> Missing: Ghost</span><span class="chip">Chosen at run time</span>
+</details>
+</li>
+<li class="rank-row" id="map-helper" data-key="helper">
+<a class="rank-link" href="shortcuts/helper.html"><span class="rank-number">2</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Helper</strong><small class="rank-meta">1 caller · 1 run</small></span></a>
+<details class="rank-details"><summary>Callers and runs</summary>
+<div class="rank-relations">
+<div><h3>Called by</h3><ul><li data-relation="callers" data-key="caller"><a href="shortcuts/caller.html">Caller</a></li></ul></div>
+<div><h3>Runs</h3><ul><li data-relation="runs" data-key="utility"><a href="shortcuts/utility.html">Utility</a></li></ul></div>
 </div>
+</details>
+</li>
+<li class="rank-row" id="map-utility" data-key="utility">
+<a class="rank-link" href="shortcuts/utility.html"><span class="rank-number">3</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Utility</strong><small class="rank-meta">2 callers · 0 runs</small></span></a>
+<details class="rank-details"><summary>Callers and runs</summary>
+<div class="rank-relations">
+<div><h3>Called by</h3><ul><li data-relation="callers" data-key="caller"><a href="shortcuts/caller.html">Caller</a></li><li data-relation="callers" data-key="helper"><a href="shortcuts/helper.html">Helper</a></li></ul></div>
+<div><h3>Runs</h3><p>No other shortcut.</p></div>
 </div>
-<div class="relationship-row" data-related="caller helper utility">
-<a href="shortcuts/helper.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><strong>Helper</strong></a>
-<div><a class="chip" href="shortcuts/utility.html">Runs Utility</a><span class="chip-muted">Called by 1</span>
-</div>
-</div>
-<div class="relationship-row" data-related="caller helper utility">
-<a href="shortcuts/utility.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><strong>Utility</strong></a>
-<div><span class="chip-muted">No outgoing calls</span><span class="chip-muted">Called by 2</span>
-</div>
-</div>
+</details>
+</li>
+</ol>
+<div class="empty" id="rank-empty" hidden><h2>No connected shortcut matches</h2><p>Only shortcuts that run or are run by another are listed here.</p></div>
 </section>
 </main>
 </body>
