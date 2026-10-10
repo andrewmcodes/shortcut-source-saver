@@ -833,6 +833,16 @@ func TestREADMEReviewLink(t *testing.T) {
 	if !strings.Contains(string(hosted), "(https://example.com/shortcuts-backup/shortcuts/linear-shortcut.html)") {
 		t.Errorf("hosted README should link the site page, got:\n%s", hosted)
 	}
+
+	for _, siteURL := range []string{"", "/", "/my-shortcuts/"} {
+		local, err := ShortcutREADMEWithOptions(w, Options{SiteURL: siteURL, SiteRoot: "../../my docs", Slug: "linear-shortcut-540bfd88"})
+		if err != nil {
+			t.Fatalf("ShortcutREADMEWithOptions: %v", err)
+		}
+		if !strings.Contains(string(local), "(../../my%20docs/shortcuts/linear-shortcut-540bfd88.html)") {
+			t.Errorf("README with base URL %q should link the site page by relative path, got:\n%s", siteURL, local)
+		}
+	}
 }
 
 func TestEmptyWorkflow(t *testing.T) {
