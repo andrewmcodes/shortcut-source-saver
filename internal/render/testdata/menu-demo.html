@@ -450,7 +450,8 @@ h1, h2, h3, p { margin: 0; }
 
 .topbar-actions, .site-navigation { display: flex; align-items: center; gap: 4px; }
 .topbar-actions { flex: 1; gap: 12px; }
-.site-navigation { margin-right: auto; }
+.site-navigation { flex: 1; }
+.site-navigation > :nth-child(2), .topbar-actions > .details-toggle { margin-left: auto; }
 .appearance-control { margin-left: auto; }
 .appearance-control { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 24px; }
 .appearance-control button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
@@ -497,6 +498,10 @@ main {
 	padding: 24px 32px 40px;
 	min-width: 0;
 }
+
+.site-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; max-width: 1280px; margin: 0 auto; padding: 20px 32px; border-top: 1px solid var(--line); }
+.copyright { font-size: 13px; color: var(--muted); }
+.copyright:hover { color: var(--text); }
 
 .page-heading {
 	display: flex;
@@ -850,7 +855,7 @@ kbd {
 .detail-side { min-width: 0; }
 .details-drawer { position: static; width: auto; max-width: none; max-height: none; margin: 0 auto; padding: 20px; border: 0; background: var(--surface); color: var(--text); }
 .drawer-ready .details-drawer { position: fixed; inset: calc(var(--header-height) + env(safe-area-inset-top)) 0 0 auto; width: 320px; height: calc(100dvh - var(--header-height) - env(safe-area-inset-top)); margin: 0; padding: 0 20px 24px; overflow-y: auto; overscroll-behavior: contain; border-left: 1px solid var(--line); }
-.drawer-ready.details-open .review-main { width: calc(100% - 320px); margin-left: 0; }
+.drawer-ready.details-open .review-main, .drawer-ready.details-open .site-footer { width: calc(100% - 320px); margin-left: 0; }
 .drawer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; margin-bottom: 8px; position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 1px solid var(--line); }
 .drawer-heading h2 { font-size: 17px; }
 .drawer-modal { overflow: hidden; }
@@ -1178,13 +1183,14 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 
 @media (max-width: 1150px) {
 	main { padding: 24px; }
+	.site-footer { padding: 20px 24px; }
 	.cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.stats > div { padding: 0 17px; }
 }
 
 @media (max-width: 850px) {
 	.drawer-ready .details-drawer { inset: 0 0 0 auto; width: min(360px, 92vw); height: 100dvh; padding: env(safe-area-inset-top) 20px max(24px, env(safe-area-inset-bottom)); }
-	.drawer-ready.details-open .review-main { width: auto; margin: 0 auto; }
+	.drawer-ready.details-open .review-main, .drawer-ready.details-open .site-footer { width: 100%; margin: 0 auto; }
 	.detail-heading { gap: 14px; }
 	.detail-heading h1 { font-size: 27px; }
 	.detail-heading > .shortcut-icon { width: 48px; height: 48px; border-radius: 13px; }
@@ -1218,6 +1224,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	:root { --header-height: 52px; }
 	.topbar { padding: env(safe-area-inset-top) 8px 0 16px; }
 	main { padding: 18px 16px 28px; }
+	.site-footer { padding: 16px; }
 	.page-heading h1 { font-size: 25px; }
 	.library-summary { margin-bottom: 4px; padding-bottom: 8px; }
 	.stats > div { padding: 0 14px; }
@@ -1705,13 +1712,9 @@ document.addEventListener('DOMContentLoaded', function () {
 <span class="brand" aria-label="Shortcuts"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span></span>
 <div class="topbar-actions">
 
-
-<div class="appearance-control" role="group" aria-label="Appearance">
-<button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg></button>
-<button type="button" data-appearance="light" aria-label="Light appearance" title="Light appearance" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
-<button type="button" data-appearance="dark" aria-label="Dark appearance" title="Dark appearance" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13A9 9 0 0 1 11 3.5 9 9 0 1 0 20.5 13Z"></path></svg></button>
-</div>
 <button type="button" class="icon-button details-toggle" id="details-toggle" aria-label="Show details" title="Show details" aria-controls="details-drawer" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+
+
 </div>
 </header>
 <main class="review-main">
@@ -1746,6 +1749,16 @@ Tell a Joke</div></div>
 </section>
 </div>
 </main>
+
+<footer class="site-footer">
+<a class="copyright" href="https://andrewm.codes">© Andrew Mason</a>
+<div class="appearance-control" role="group" aria-label="Appearance">
+<button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg></button>
+<button type="button" data-appearance="light" aria-label="Light appearance" title="Light appearance" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+<button type="button" data-appearance="dark" aria-label="Dark appearance" title="Dark appearance" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13A9 9 0 0 1 11 3.5 9 9 0 1 0 20.5 13Z"></path></svg></button>
+</div>
+</footer>
+
 <dialog class="details-drawer" id="details-drawer" aria-labelledby="details-heading" open>
 <aside class="detail-side" aria-labelledby="details-heading">
 <div class="meta-panel" id="details">

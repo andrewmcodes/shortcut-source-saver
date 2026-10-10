@@ -668,7 +668,7 @@ func TestSiteMakesNoExternalRequests(t *testing.T) {
 	}
 	external := regexp.MustCompile(`(?i)(src|href)="(https?:)?//|@import|url\([^#]`)
 	for name, body := range site {
-		if match := external.Find(body); match != nil {
+		if match := external.Find(bytes.ReplaceAll(body, []byte(`href="https://andrewm.codes"`), nil)); match != nil {
 			t.Errorf("%s references an external resource: %s", name, match)
 		}
 	}
@@ -1101,5 +1101,21 @@ func TestLibraryOutputTypes(t *testing.T) {
 	assertContains(t, "output filters", page, `id="output-filter"`, `value="Text"`, `value="Image"`, `value="Not specified"`, `data-outputs="[&#34;Image&#34;,&#34;Text&#34;]"`, `data-outputs="[&#34;Not specified&#34;]"`)
 	if got := strings.Count(page, `value="Text"`); got != 1 {
 		t.Errorf("Text output options = %d, want one deduplicated option", got)
+	}
+}
+
+func TestAppearanceControlsInFooter(t *testing.T) {
+	site, err := Site([]Entry{{Workflow: workflow("Example", action("is.workflow.actions.nothing", nil))}}, SiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{IndexPath, MapPath, "shortcuts/example.html"} {
+		page := string(site[name])
+		header := page[strings.Index(page, "<header"):strings.Index(page, "</header>")]
+		footer := page[strings.Index(page, "<footer"):strings.Index(page, "</footer>")]
+		if strings.Contains(header, "data-appearance") {
+			t.Errorf("%s has navbar appearance controls", name)
+		}
+		assertContains(t, name, footer, `href="https://andrewm.codes">© Andrew Mason</a>`, `data-appearance="auto"`, `data-appearance="light"`, `data-appearance="dark"`)
 	}
 }

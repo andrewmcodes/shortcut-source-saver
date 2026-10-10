@@ -44,19 +44,26 @@ try {
 <div class="topbar-actions">
 {{if .Home}}<nav class="site-navigation" aria-label="Main navigation">
 <a class="topbar-link library-link" href="{{.Home}}"{{if not .OnMap}} aria-current="{{if .OnIndex}}page{{else}}location{{end}}"{{end}}>{{template "icon-layers"}}<span>All shortcuts</span></a>{{end}}
+{{if .OnDetail}}<button type="button" class="icon-button details-toggle" id="details-toggle" aria-label="Show details" title="Show details" aria-controls="details-drawer" aria-expanded="false" hidden>{{template "icon-panel"}}</button>{{end}}
 {{- with .MapHref}}
 <a class="topbar-link" href="{{.}}"{{if $.OnMap}} aria-current="page"{{end}}>{{template "icon-graph"}}<span>Dependency map</span></a>
 {{- end}}
 {{if .Home}}</nav>{{end}}
+
+</div>
+</header>
+{{- end}}
+
+{{define "site-footer"}}
+<footer class="site-footer">
+<a class="copyright" href="https://andrewm.codes">© Andrew Mason</a>
 <div class="appearance-control" role="group" aria-label="Appearance">
 <button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true">{{template "icon-system"}}</button>
 <button type="button" data-appearance="light" aria-label="Light appearance" title="Light appearance" aria-pressed="false">{{template "icon-theme"}}</button>
 <button type="button" data-appearance="dark" aria-label="Dark appearance" title="Dark appearance" aria-pressed="false">{{template "icon-moon"}}</button>
 </div>
-{{if .OnDetail}}<button type="button" class="icon-button details-toggle" id="details-toggle" aria-label="Show details" title="Show details" aria-controls="details-drawer" aria-expanded="false" hidden>{{template "icon-panel"}}</button>{{end}}
-</div>
-</header>
-{{- end}}
+</footer>
+{{end}}
 
 {{define "theme-script"}}
 	const appearanceButtons = document.querySelectorAll('[data-appearance]');
