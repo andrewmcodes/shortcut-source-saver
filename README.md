@@ -14,6 +14,11 @@ This reads that database directly and turns it into something git can track.
 
 Requires macOS.
 
+
+
+> [!CAUTION]
+> This homebrew install command does not work yet. Install from source instead.
+
 ```sh
 brew install andrewmcodes/tap/sss
 ```
