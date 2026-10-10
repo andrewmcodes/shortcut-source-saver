@@ -76,7 +76,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			tile: row.querySelector('.shortcut-icon'),
 			meta: row.querySelector('.rank-meta').textContent,
 			metaText: row.querySelector('.rank-meta'),
-			number: row.querySelector('.rank-number'),
 			warning: row.querySelector('.rank-warning'),
 			reason: row.querySelector('.rank-reason'),
 			inactive: row.hasAttribute('data-inactive'),
@@ -292,7 +291,6 @@ document.addEventListener('DOMContentLoaded', function () {
 		listed = nodes.filter(function (node) { return node.listed; }).sort(function (a, b) { return b.total - a.total || a.order - b.order; });
 		listed.forEach(function (node, index) {
 			node.rank = index;
-			node.number.textContent = index + 1;
 			list.append(node.row);
 		});
 		for (const node of nodes) {
@@ -432,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <ol class="rank-list" id="rank-list">
 {{- range .Rows}}
 <li class="rank-row{{if .Inactive}} inactive{{end}}" id="{{.Anchor}}" data-key="{{.Key}}" data-order="{{.NameOrder}}"{{if .Inactive}} data-inactive{{end}}>
-<a class="rank-link" href="{{.Href}}"><span class="rank-number">{{.Rank}}</span><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><span class="rank-text"><strong>{{.Name}}</strong>{{with .Inactive}}<small class="rank-status"><span class="deleted-badge">{{template "icon-trash"}} Deleted</span> <span class="rank-reason">{{.}}</span></small>{{end}}<small class="rank-meta">{{.CallerCount}} caller{{if ne .CallerCount 1}}s{{end}} · {{.RunCount}} run{{if ne .RunCount 1}}s{{end}}{{if .Self}} · runs itself{{end}}</small>{{if .Missing}}<small class="rank-warning">{{template "icon-warning"}} {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}</small>{{end}}</span></a>
+<a class="rank-link" href="{{.Href}}"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><span class="rank-text"><strong>{{.Name}}</strong>{{with .Inactive}}<small class="rank-status"><span class="deleted-badge">{{template "icon-trash"}} Deleted</span> <span class="rank-reason">{{.}}</span></small>{{end}}<small class="rank-meta">{{.CallerCount}} caller{{if ne .CallerCount 1}}s{{end}} · {{.RunCount}} run{{if ne .RunCount 1}}s{{end}}{{if .Self}} · runs itself{{end}}</small>{{if .Missing}}<small class="rank-warning">{{template "icon-warning"}} {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}</small>{{end}}</span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">
 <div><h3>Called by</h3>{{if .Callers}}<ul>{{range .Callers}}<li data-relation="callers" data-key="{{.Key}}"{{if .Inactive}} data-inactive{{end}}><a href="{{.Href}}">{{.Name}}</a>{{if .Inactive}} <small class="relation-deleted">Deleted</small>{{end}}</li>{{end}}</ul>{{else}}<p>Nothing in this backup runs it.</p>{{end}}</div>

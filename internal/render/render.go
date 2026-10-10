@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -448,6 +449,7 @@ func isHostedURL(raw string) bool {
 }
 
 type indexPage struct {
+	OutputTypes  []string
 	Title        string
 	Stylesheet   string
 	Chrome       chrome
@@ -464,6 +466,7 @@ type indexPage struct {
 }
 
 type indexRow struct {
+	Outputs      string
 	Name         string
 	Href         string
 	ActionCount  int
@@ -508,6 +511,7 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 	rootHref := func(slug string) string { return root + path.Join(ShortcutsDirname, slug+".html") }
 
 	rows := make([]indexRow, 0, len(entries))
+	outputTypes := map[string]bool{}
 	var latest time.Time
 	for i, entry := range entries {
 		slug := slugs[i]
@@ -548,6 +552,26 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 			Inactive:     statusReason(entry.Workflow),
 			DeletedLinks: graph.inactiveNeighbours(i),
 		}
+		outputs := map[string]bool{}
+		for _, raw := range entry.Workflow.OutputContentItemClasses {
+			if class, ok := raw.(string); ok && class != "" {
+				outputs[splitWords(contentClassName(class))] = true
+			}
+		}
+		if len(outputs) == 0 {
+			outputs["Not specified"] = true
+		}
+		names := make([]string, 0, len(outputs))
+		for name := range outputs {
+			names = append(names, name)
+			outputTypes[name] = true
+		}
+		sort.Strings(names)
+		encoded, err := json.Marshal(names)
+		if err != nil {
+			return nil, err
+		}
+		row.Outputs = string(encoded)
 		rows = append(rows, row)
 		if row.Inactive != "" {
 			index.Deleted++
@@ -573,6 +597,10 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		return lessName(rows[i].Name, rows[i].Href, rows[j].Name, rows[j].Href)
 	})
 	index.Rows = rows
+	for name := range outputTypes {
+		index.OutputTypes = append(index.OutputTypes, name)
+	}
+	sort.Strings(index.OutputTypes)
 
 	body, err := execute(pages, "index", index)
 	if err != nil {

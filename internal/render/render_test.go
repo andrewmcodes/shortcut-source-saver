@@ -1088,3 +1088,18 @@ func TestAppearanceAndDetailsDrawer(t *testing.T) {
 	}
 	assertContains(t, "detail drawer", string(site["shortcuts/example.html"]), `id="details-drawer"`, `aria-controls="details-drawer"`, `id="details-close"`, `drawer.showModal()`, `drawer.show()`)
 }
+
+func TestLibraryOutputTypes(t *testing.T) {
+	text := workflow("Text result", action("is.workflow.actions.nothing", nil))
+	text.OutputContentItemClasses = []any{"WFStringContentItem", "WFImageContentItem", "WFStringContentItem", nil, ""}
+	unknown := workflow("Unknown result", action("is.workflow.actions.nothing", nil))
+	site, err := Site([]Entry{{Workflow: text}, {Workflow: unknown}}, SiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(site[IndexPath])
+	assertContains(t, "output filters", page, `id="output-filter"`, `value="Text"`, `value="Image"`, `value="Not specified"`, `data-outputs="[&#34;Image&#34;,&#34;Text&#34;]"`, `data-outputs="[&#34;Not specified&#34;]"`)
+	if got := strings.Count(page, `value="Text"`); got != 1 {
+		t.Errorf("Text output options = %d, want one deduplicated option", got)
+	}
+}

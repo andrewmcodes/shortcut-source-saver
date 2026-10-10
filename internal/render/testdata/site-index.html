@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Shortcuts</title>
-<link rel="stylesheet" href="assets/style.css?v=5018877a9440">
+<link rel="stylesheet" href="assets/style.css?v=99b9562a673d">
 <script>
 try {
 	const saved = localStorage.getItem('sss-theme');
@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	const cards = Array.from(list.children);
 	const search = document.getElementById('search');
 	const filter = document.getElementById('filter');
+	const outputFilter = document.getElementById('output-filter');
+	const outputInputs = Array.from(outputFilter.querySelectorAll('input'));
+	const cardOutputs = new Map(cards.map(function (card) { return [card, JSON.parse(card.dataset.outputs)]; }));
 	const sort = document.getElementById('sort');
 	const deleted = document.getElementById('show-deleted');
 	const empty = document.getElementById('empty');
@@ -37,11 +40,14 @@ document.addEventListener('DOMContentLoaded', function () {
 	function update() {
 		const query = search.value.trim().toLowerCase();
 		const selected = filter.selectedOptions[0];
+		const outputs = outputInputs.filter(function (input) { return input.checked; }).map(function (input) { return input.value; });
+		outputFilter.querySelector('summary').textContent = outputs.length ? 'Output types · ' + outputs.length : 'Output types';
+		document.getElementById('clear-outputs').disabled = outputs.length === 0;
 		list.classList.toggle('with-deleted', deleted.checked);
 		let pool = 0;
 		let shown = 0;
 		for (const card of cards) {
-			const inFilter = inScope(card, selected);
+			const inFilter = inScope(card, selected) && (!outputs.length || outputs.some(function (type) { return cardOutputs.get(card).includes(type); }));
 			const visible = inFilter && name(card).toLowerCase().includes(query);
 			if (inFilter) { pool++; }
 			if (visible) { shown++; }
@@ -81,6 +87,17 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	try { deleted.checked = localStorage.getItem('sss-show-deleted') === '1'; } catch (error) {}
+	outputFilter.addEventListener('change', update);
+	document.getElementById('clear-outputs').addEventListener('click', function () {
+		for (const input of outputInputs) { input.checked = false; }
+		update();
+	});
+	outputFilter.addEventListener('keydown', function (event) {
+		if (event.key === 'Escape') { outputFilter.open = false; outputFilter.querySelector('summary').focus(); }
+	});
+	document.addEventListener('click', function (event) {
+		if (!outputFilter.contains(event.target)) { outputFilter.open = false; }
+	});
 	search.addEventListener('input', update);
 	filter.addEventListener('change', function () {
 		if (filter.value === 'deleted') { deleted.checked = true; }
@@ -95,6 +112,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	sort.addEventListener('change', reorder);
 	document.getElementById('clear').addEventListener('click', function () {
 		search.value = '';
+		for (const input of outputInputs) { input.checked = false; }
 		filter.value = 'all';
 		writeHash();
 		update();
@@ -139,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="topbar-actions">
 <nav class="site-navigation" aria-label="Main navigation">
 <a class="topbar-link library-link" href="index.html" aria-current="page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg><span>All shortcuts</span></a>
-<a class="topbar-link" href="dependencies.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg><span>Dependency map</span></a>
+<a class="topbar-link" href="dependencies.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M12 8v4M6 16v-4h12v4"></path></svg><span>Dependency map</span></a>
 </nav>
 <div class="appearance-control" role="group" aria-label="Appearance">
 <button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg></button>
@@ -163,29 +181,30 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="library-toolbar" id="toolbar" hidden>
 <label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5"></path></svg><span class="sr-only">Search shortcuts</span><input id="search" type="search" placeholder="Search shortcuts" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
 <select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts (3)</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged (0)</option><option value="connected" data-label="Connected" data-match="[data-connected], .with-deleted [data-linked]">Connected (0)</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected]):not(.with-deleted [data-linked])">Standalone (3)</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references (0)</option></select>
+<details class="output-filter" id="output-filter"><summary>Output types</summary><div class="output-options"><p>Matches any selected output type.</p><fieldset><legend class="sr-only">Declared output types</legend><label><input type="checkbox" value="Not specified" autocomplete="off"><span>Not specified</span></label></fieldset><button type="button" id="clear-outputs">Clear output types</button></div></details>
 <select id="sort" aria-label="Sort shortcuts"><option value="name">Sort by name</option><option value="actions">Most actions</option><option value="modified">Recently modified</option></select>
 <label class="toggle" hidden><input type="checkbox" id="show-deleted" autocomplete="off"><span>Show deleted</span><span class="toggle-count">0</span></label>
 <div class="results-summary" role="status" aria-live="polite"><h2 id="results-title">All shortcuts</h2><span class="results-count" id="results-count">3 shortcuts</span></div>
 </div>
 <div class="cards" id="shortcuts">
-<a class="shortcut-card" href="shortcuts/linear-shortcut.html" data-actions="5" data-modified="2025-06-14T17:05:00Z">
+<a class="shortcut-card" href="shortcuts/linear-shortcut.html" data-outputs="[&#34;Not specified&#34;]" data-actions="5" data-modified="2025-06-14T17:05:00Z">
 <div class="card-top"><span class="shortcut-icon" style="--icon: #4F9BFF" title="#4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="category">iOS 18</span></div>
 <h3>Linear Shortcut</h3>
 <div class="card-meta"><span>5 actions</span><span>Modified 2025-06-14</span><span class="card-links">Standalone</span></div>
 </a>
-<a class="shortcut-card" href="shortcuts/nested-if.html" data-actions="8" data-modified="2025-06-14T17:05:00Z">
+<a class="shortcut-card" href="shortcuts/nested-if.html" data-outputs="[&#34;Not specified&#34;]" data-actions="8" data-modified="2025-06-14T17:05:00Z">
 <div class="card-top"><span class="shortcut-icon" style="--icon: #4F9BFF" title="#4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="category">iOS 18</span></div>
 <h3>Nested If</h3>
 <div class="card-meta"><span>8 actions</span><span>Modified 2025-06-14</span><span class="card-links">Standalone</span></div>
 </a>
-<a class="shortcut-card" href="shortcuts/repeat-with-menu.html" data-actions="10" data-modified="2025-06-14T17:05:00Z">
+<a class="shortcut-card" href="shortcuts/repeat-with-menu.html" data-outputs="[&#34;Not specified&#34;]" data-actions="10" data-modified="2025-06-14T17:05:00Z">
 <div class="card-top"><span class="shortcut-icon" style="--icon: #4F9BFF" title="#4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="category">iOS 18</span></div>
 <h3>Repeat With Menu</h3>
 <div class="card-meta"><span>10 actions</span><span>Modified 2025-06-14</span><span class="card-links">Standalone</span></div>
 </a>
 </div>
 <div class="empty" id="empty" hidden><h2>No shortcuts found</h2><p>Try a different search or filter.</p><button type="button" class="btn" id="clear">Clear search and filters</button></div>
-<div class="library-footer"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 15 6-6m-5-3 2-2a5 5 0 0 1 7 7l-2 2M7 11l-2 2a5 5 0 0 0 7 7l2-2"></path></svg> Run Shortcut actions are matched by workflow identifier, then by name.</span><a class="text-link" href="dependencies.html">Explore dependency map <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg></a></div>
+<div class="library-footer"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 15 6-6m-5-3 2-2a5 5 0 0 1 7 7l-2 2M7 11l-2 2a5 5 0 0 0 7 7l2-2"></path></svg> Run Shortcut actions are matched by workflow identifier, then by name.</span><a class="text-link" href="dependencies.html">Explore dependency map <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M12 8v4M6 16v-4h12v4"></path></svg></a></div>
 </main>
 </body>
 </html>

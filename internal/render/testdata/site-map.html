@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dependency map · Shortcuts</title>
-<link rel="stylesheet" href="assets/style.css?v=5018877a9440">
+<link rel="stylesheet" href="assets/style.css?v=99b9562a673d">
 <script>
 try {
 	const saved = localStorage.getItem('sss-theme');
@@ -96,7 +96,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			tile: row.querySelector('.shortcut-icon'),
 			meta: row.querySelector('.rank-meta').textContent,
 			metaText: row.querySelector('.rank-meta'),
-			number: row.querySelector('.rank-number'),
 			warning: row.querySelector('.rank-warning'),
 			reason: row.querySelector('.rank-reason'),
 			inactive: row.hasAttribute('data-inactive'),
@@ -312,7 +311,6 @@ document.addEventListener('DOMContentLoaded', function () {
 		listed = nodes.filter(function (node) { return node.listed; }).sort(function (a, b) { return b.total - a.total || a.order - b.order; });
 		listed.forEach(function (node, index) {
 			node.rank = index;
-			node.number.textContent = index + 1;
 			list.append(node.row);
 		});
 		for (const node of nodes) {
@@ -426,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="topbar-actions">
 <nav class="site-navigation" aria-label="Main navigation">
 <a class="topbar-link library-link" href="index.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg><span>All shortcuts</span></a>
-<a class="topbar-link" href="dependencies.html" aria-current="page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg><span>Dependency map</span></a>
+<a class="topbar-link" href="dependencies.html" aria-current="page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M12 8v4M6 16v-4h12v4"></path></svg><span>Dependency map</span></a>
 </nav>
 <div class="appearance-control" role="group" aria-label="Appearance">
 <button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg></button>
@@ -465,7 +463,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <p class="rank-intro">Ranked by how many shortcuts run each one plus how many it runs.</p>
 <ol class="rank-list" id="rank-list">
 <li class="rank-row" id="map-caller" data-key="caller" data-order="0">
-<a class="rank-link" href="shortcuts/caller.html"><span class="rank-number">1</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Caller</strong><small class="rank-meta">0 callers · 4 runs · runs itself</small><small class="rank-warning"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg> 1 missing reference</small></span></a>
+<a class="rank-link" href="shortcuts/caller.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Caller</strong><small class="rank-meta">0 callers · 4 runs · runs itself</small><small class="rank-warning"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg> 1 missing reference</small></span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">
 <div><h3>Called by</h3><p>Nothing in this backup runs it.</p></div>
@@ -474,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </details>
 </li>
 <li class="rank-row" id="map-helper" data-key="helper" data-order="1">
-<a class="rank-link" href="shortcuts/helper.html"><span class="rank-number">2</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Helper</strong><small class="rank-meta">1 caller · 1 run</small></span></a>
+<a class="rank-link" href="shortcuts/helper.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Helper</strong><small class="rank-meta">1 caller · 1 run</small></span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">
 <div><h3>Called by</h3><ul><li data-relation="callers" data-key="caller"><a href="shortcuts/caller.html">Caller</a></li></ul></div>
@@ -483,7 +481,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </details>
 </li>
 <li class="rank-row" id="map-utility" data-key="utility" data-order="2">
-<a class="rank-link" href="shortcuts/utility.html"><span class="rank-number">3</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Utility</strong><small class="rank-meta">2 callers · 0 runs</small></span></a>
+<a class="rank-link" href="shortcuts/utility.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Utility</strong><small class="rank-meta">2 callers · 0 runs</small></span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">
 <div><h3>Called by</h3><ul><li data-relation="callers" data-key="caller"><a href="shortcuts/caller.html">Caller</a></li><li data-relation="callers" data-key="helper"><a href="shortcuts/helper.html">Helper</a></li></ul></div>

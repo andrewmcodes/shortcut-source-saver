@@ -133,7 +133,7 @@ func TestSiteShowsRunsAndCalledBy(t *testing.T) {
 
 	index := string(site[IndexPath])
 	for _, want := range []string{
-		`href="shortcuts/caller.html" data-actions="7" data-modified="2025-06-14T17:05:00Z" data-connected data-linked data-missing>`,
+		`href="shortcuts/caller.html" data-outputs="[&#34;Not specified&#34;]" data-actions="7" data-modified="2025-06-14T17:05:00Z" data-connected data-linked data-missing>`,
 		`1 missing reference</span>`,
 		`Connected (3)`,
 		`Missing references (1)`,
@@ -227,7 +227,7 @@ func TestMapRanksByConnections(t *testing.T) {
 		t.Errorf("ranking = %q, want %q: most connected first, ties by name, standalone left out", got, want)
 	}
 	for key, want := range map[string]string{
-		"caller":  `<span class="rank-number">1</span>`,
+		"caller":  `<strong>Caller</strong>`,
 		"helper":  `1 caller · 1 run</small>`,
 		"utility": `2 callers · 0 runs</small>`,
 	} {
@@ -412,7 +412,7 @@ func TestIndexMarksAndCountsDeleted(t *testing.T) {
 		`<option value="all" data-label="All shortcuts">All shortcuts (2)</option>`,
 		`<option value="deleted" data-label="Deleted" data-match="[data-deleted]">Deleted (2)</option>`,
 		`<input type="checkbox" id="show-deleted" autocomplete="off"><span>Show deleted</span><span class="toggle-count">2</span>`,
-		`<a class="shortcut-card inactive" href="shortcuts/get-app-from-input.html" data-actions="1" data-modified="2025-06-14T17:05:00Z" data-connected data-linked data-deleted>`,
+		`<a class="shortcut-card inactive" href="shortcuts/get-app-from-input.html" data-outputs="[&#34;Not specified&#34;]" data-actions="1" data-modified="2025-06-14T17:05:00Z" data-connected data-linked data-deleted>`,
 		`<span class="card-status"><span class="card-status-label">Deleted · </span>Sync-conflict copy of get_apple_app</span>`,
 		`<span class="card-status"><span class="card-status-label">Deleted · </span>Deleted from your library</span>`,
 		` 1 caller<span class="card-deleted-links">+2 deleted</span>`,

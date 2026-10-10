@@ -265,7 +265,7 @@ main {
 
 .library-toolbar {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(140px, 185px) minmax(140px, 180px) auto;
+	grid-template-columns: minmax(0, 1fr) repeat(3, minmax(140px, 185px));
 	gap: 8px;
 	margin-bottom: 12px;
 }
@@ -303,16 +303,37 @@ kbd {
 	color: var(--muted);
 }
 
-.library-toolbar select {
+.library-toolbar select, .output-filter > summary {
+	-webkit-appearance: none;
+	appearance: none;
 	width: 100%;
+	height: 44px;
 	min-height: 44px;
-	padding: 9px 10px;
+	padding: 9px 32px 9px 10px;
 	border: 1px solid var(--line);
 	border-radius: 9px;
-	background: var(--surface);
+	background-color: var(--surface);
+	background-image: linear-gradient(45deg, transparent 45%, var(--muted) 45%, var(--muted) 65%, transparent 65%), linear-gradient(-45deg, transparent 45%, var(--muted) 45%, var(--muted) 65%, transparent 65%);
+	background-repeat: no-repeat;
+	background-size: 5px 5px;
+	background-position: right 15px center, right 10px center;
 	color: var(--text);
 	font-size: 14px;
+	line-height: 24px;
+	cursor: pointer;
 }
+
+.output-filter { position: relative; min-width: 0; }
+.output-filter > summary { display: block; list-style: none; }
+.output-filter > summary::-webkit-details-marker { display: none; }
+.output-options { position: absolute; top: calc(100% + 6px); right: 0; z-index: 10; width: min(280px, calc(100vw - 32px)); max-height: 60dvh; overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 8px 24px #0002; }
+.output-options p { margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+.output-options fieldset { margin: 0; padding: 0; border: 0; }
+.output-options label { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; cursor: pointer; }
+.output-options label span { overflow-wrap: anywhere; }
+.output-options input { accent-color: var(--solid); }
+.output-options button { margin-top: 8px; padding: 8px 0; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 13px; }
+.output-options button:disabled { color: var(--muted); cursor: default; }
 
 .results-summary {
 	grid-column: 1 / -1;
@@ -780,10 +801,9 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	list-style: none;
 }
 .rank-row { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.rank-link { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 14px 10px 8px; border-radius: 11px; }
+.rank-link { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 14px; border-radius: 11px; }
 .rank-link:hover { color: var(--text); background: var(--side); }
 .rank-link:focus-visible { outline-offset: -3px; }
-.rank-number { width: 26px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rank-row .shortcut-icon { width: 36px; height: 36px; border-radius: 10px; }
 .rank-row .shortcut-icon svg { width: 19px; height: 19px; }
 .rank-text { display: flex; flex-direction: column; min-width: 0; }
@@ -796,9 +816,8 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 .rank-status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 2px 0; font-size: 12px; color: var(--danger); }
 .rank-row.current { border-color: var(--indigo-8); background: var(--accent-bg); }
 .rank-row.current .rank-link:hover { background: transparent; }
-.rank-row.current .rank-number { color: var(--accent); font-weight: 650; }
-.rank-details > summary { padding: 0 14px 12px 94px; font-size: 12px; font-weight: 550; color: var(--accent); cursor: pointer; }
-.rank-relations { display: grid; gap: 10px; padding: 0 14px 14px 94px; font-size: 13px; }
+.rank-details > summary { padding: 0 14px 12px 62px; font-size: 12px; font-weight: 550; color: var(--accent); cursor: pointer; }
+.rank-relations { display: grid; gap: 10px; padding: 0 14px 14px 62px; font-size: 13px; }
 .rank-relations h3 { font-size: 11px; font-weight: 650; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
 .rank-relations ul { margin: 2px 0 0; padding-left: 18px; }
 .rank-relations p { color: var(--muted); }
@@ -810,7 +829,8 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 .rank-footnote .text-link { min-height: 0; }
 
 @media (min-width: 651px) and (hover: hover) and (pointer: fine) {
-	.search, .library-toolbar select, .btn { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+	.search, .library-toolbar select, .output-filter > summary, .btn { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+	.library-toolbar select, .output-filter > summary { height: 36px; line-height: 22px; }
 }
 
 @media (max-width: 1150px) {
@@ -844,9 +864,10 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	.focus-node .shortcut-icon, .focus-glyph { width: 28px; height: 28px; }
 }
 
-@media (max-width: 650px) {
+@media (max-width: 900px) {
 	.library-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 8px; }
 	.library-toolbar .search { grid-column: 1 / -1; }
+	.output-options { right: 0; }
 	.results-summary { flex-wrap: wrap; }
 }
 
@@ -890,7 +911,12 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	.shortcut-card h3 { grid-column: 2; margin: 0; font-size: 16px; font-weight: 550; line-height: 1.4; letter-spacing: -0.15px; }
 	.card-meta { grid-column: 2; justify-content: flex-start; gap: 12px; margin: 0; padding: 0; border: 0; }
 	.card-warning { grid-column: 2; margin-top: 2px; }
-	.topbar-link { padding: 0 10px; }
+	.topbar-link { position: relative; width: 44px; height: 44px; padding: 0; justify-content: center; }
+	.topbar-link:hover, .topbar-link[aria-current] { background: transparent; }
+	.topbar-link::before { content: ""; position: absolute; inset: 6px; border-radius: 8px; }
+	.topbar-link:hover::before { background: var(--side); }
+	.topbar-link[aria-current="page"]::before { background: var(--accent-bg); }
+	.topbar-link > svg { position: relative; }
 	.topbar-link.library-link { display: none; }
 	.topbar-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 	.library-footer { flex-direction: column; align-items: flex-start; }

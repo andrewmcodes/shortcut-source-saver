@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	const cards = Array.from(list.children);
 	const search = document.getElementById('search');
 	const filter = document.getElementById('filter');
+	const outputFilter = document.getElementById('output-filter');
+	const outputInputs = Array.from(outputFilter.querySelectorAll('input'));
+	const cardOutputs = new Map(cards.map(function (card) { return [card, JSON.parse(card.dataset.outputs)]; }));
 	const sort = document.getElementById('sort');
 	const deleted = document.getElementById('show-deleted');
 	const empty = document.getElementById('empty');
@@ -34,11 +37,14 @@ document.addEventListener('DOMContentLoaded', function () {
 	function update() {
 		const query = search.value.trim().toLowerCase();
 		const selected = filter.selectedOptions[0];
+		const outputs = outputInputs.filter(function (input) { return input.checked; }).map(function (input) { return input.value; });
+		outputFilter.querySelector('summary').textContent = outputs.length ? 'Output types · ' + outputs.length : 'Output types';
+		document.getElementById('clear-outputs').disabled = outputs.length === 0;
 		list.classList.toggle('with-deleted', deleted.checked);
 		let pool = 0;
 		let shown = 0;
 		for (const card of cards) {
-			const inFilter = inScope(card, selected);
+			const inFilter = inScope(card, selected) && (!outputs.length || outputs.some(function (type) { return cardOutputs.get(card).includes(type); }));
 			const visible = inFilter && name(card).toLowerCase().includes(query);
 			if (inFilter) { pool++; }
 			if (visible) { shown++; }
@@ -78,6 +84,17 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	try { deleted.checked = localStorage.getItem('sss-show-deleted') === '1'; } catch (error) {}
+	outputFilter.addEventListener('change', update);
+	document.getElementById('clear-outputs').addEventListener('click', function () {
+		for (const input of outputInputs) { input.checked = false; }
+		update();
+	});
+	outputFilter.addEventListener('keydown', function (event) {
+		if (event.key === 'Escape') { outputFilter.open = false; outputFilter.querySelector('summary').focus(); }
+	});
+	document.addEventListener('click', function (event) {
+		if (!outputFilter.contains(event.target)) { outputFilter.open = false; }
+	});
 	search.addEventListener('input', update);
 	filter.addEventListener('change', function () {
 		if (filter.value === 'deleted') { deleted.checked = true; }
@@ -92,6 +109,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	sort.addEventListener('change', reorder);
 	document.getElementById('clear').addEventListener('click', function () {
 		search.value = '';
+		for (const input of outputInputs) { input.checked = false; }
 		filter.value = 'all';
 		writeHash();
 		update();
@@ -133,13 +151,14 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="library-toolbar" id="toolbar" hidden>
 <label class="search">{{template "icon-search"}}<span class="sr-only">Search shortcuts</span><input id="search" type="search" placeholder="Search shortcuts" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
 <select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts ({{.Count}})</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged ({{.Flagged}})</option><option value="connected" data-label="Connected" data-match="[data-connected], .with-deleted [data-linked]">Connected ({{.Connected}})</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected]):not(.with-deleted [data-linked])">Standalone ({{.Standalone}})</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references ({{.Missing}})</option>{{if .Deleted}}<option value="deleted" data-label="Deleted" data-match="[data-deleted]">Deleted ({{.Deleted}})</option>{{end}}</select>
+<details class="output-filter" id="output-filter"><summary>Output types</summary><div class="output-options"><p>Matches any selected output type.</p><fieldset><legend class="sr-only">Declared output types</legend>{{range .OutputTypes}}<label><input type="checkbox" value="{{.}}" autocomplete="off"><span>{{.}}</span></label>{{end}}</fieldset><button type="button" id="clear-outputs">Clear output types</button></div></details>
 <select id="sort" aria-label="Sort shortcuts"><option value="name">Sort by name</option><option value="actions">Most actions</option><option value="modified">Recently modified</option></select>
 <label class="toggle"{{if not .Deleted}} hidden{{end}}><input type="checkbox" id="show-deleted" autocomplete="off"><span>Show deleted</span><span class="toggle-count">{{.Deleted}}</span></label>
 <div class="results-summary" role="status" aria-live="polite"><h2 id="results-title">All shortcuts</h2><span class="results-count" id="results-count">{{.Count}} shortcut{{if ne .Count 1}}s{{end}}</span></div>
 </div>
 <div class="cards" id="shortcuts">
 {{- range .Rows}}{{$row := .}}
-<a class="shortcut-card{{if .Inactive}} inactive{{end}}" href="{{.Href}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}{{if .Connected}} data-connected{{end}}{{if .Linked}} data-linked{{end}}{{if .Missing}} data-missing{{end}}{{if .Inactive}} data-deleted{{end}}>
+<a class="shortcut-card{{if .Inactive}} inactive{{end}}" href="{{.Href}}" data-outputs="{{.Outputs}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}{{if .Connected}} data-connected{{end}}{{if .Linked}} data-linked{{end}}{{if .Missing}} data-missing{{end}}{{if .Inactive}} data-deleted{{end}}>
 <div class="card-top"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}" title="{{.ColorText}}">{{template "icon-layers"}}</span>{{if .Inactive}}<span class="deleted-badge">{{template "icon-trash"}} Deleted</span>{{else}}{{with .MinimumOS}}<span class="category">iOS {{.}}</span>{{end}}{{end}}</div>
 <h3>{{.Name}}</h3>
 {{- with .Inactive}}
