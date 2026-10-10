@@ -6,7 +6,7 @@
 {{- else if eq .Kind "break"}}<br>
 {{- else if eq .Kind "box"}}<span class="box">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "var"}}<span class="var">{{template "nodes" .Children}}</span>
-{{- else if eq .Kind "magic"}}<span class="magic" data-target="{{.Target}}">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "magic"}}<span class="magic" data-target="{{.Target}}" role="link" tabindex="0">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "flag"}}<span class="flagged">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "bold"}}<b>{{template "nodes" .Children}}</b>
 {{- else if eq .Kind "italic"}}<i>{{template "nodes" .Children}}</i>
@@ -28,7 +28,7 @@
 {{- end}}
 
 {{define "item"}}
-<button class="{{.ButtonClass}}" id="m{{.Index}}">{{template "nodes" .Label}}</button>
+<button class="{{.ButtonClass}}" id="m{{.Index}}"><span class="step">{{.Index}}</span>{{template "nodes" .Label}}</button>
 {{- if .Container}}<div class="{{.ContentClass}}"{{if .Collapsed}} style="display:none"{{end}}>
 {{- range .Rows}}{{template "row" .}}{{end}}
 {{- template "items" .Children}}
@@ -37,14 +37,24 @@
 {{- end}}
 
 {{define "header"}}
-<button class="button gParams" id="mheader"><b>{{.Name}}</b> ({{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}{{with .MinimumOS}}, iOS {{.}}{{end}}){{if .Corrupted}} <span class="magic flagged" data-target="{{.CorruptedAt}}">corrupted</span>{{end}}</button><div class="content">
-<div class="row"><div class="col1">Colour</div><div class="col2"><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</div></div>
+<div class="detail-heading"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><div><span class="eyebrow">Shortcut</span><h1>{{.Name}}</h1></div></div>
+<div class="detail-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .MinimumOS}}<span>iOS {{.}}</span>{{end}}{{with .Modified}}<span>Modified {{.}}</span>{{end}}{{if .Corrupted}}<span class="flagged">Flagged</span>{{end}}</div>
+{{- end}}
+
+{{define "details"}}
+<aside class="detail-side" aria-labelledby="details-heading">
+<details class="meta-panel" id="details" open>
+<summary><h2 id="details-heading">Details</h2></summary>
+<dl class="meta-list">
+<div><dt>Colour</dt><dd><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</dd></div>
 {{- range .Rows}}
 {{- if .Nodes}}
-<div class="row"><div class="col1">{{.Label}}</div><div class="col2">{{template "nodes" .Nodes}}</div></div>
+<div><dt>{{.Label}}</dt><dd>{{template "nodes" .Nodes}}</dd></div>
 {{- else if .Text}}
-<div class="row"><div class="col1">{{.Label}}</div><div class="col2">{{.Text}}</div></div>
+<div{{if .Flagged}} class="flagged-row"{{end}}><dt>{{.Label}}</dt><dd>{{.Text}}</dd></div>
 {{- end}}
 {{- end}}
-</div>
+</dl>
+</details>
+</aside>
 {{- end}}

@@ -2,65 +2,130 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="format-detection" content="telephone=no,date=no">
 <title>Linear Shortcut</title>
 <link rel="stylesheet" href="/shortcut-source-saver/assets/style.css">
+<script>
+try {
+	const saved = localStorage.getItem('sss-theme');
+	if (saved === 'dark' || saved === 'light') { document.documentElement.dataset.theme = saved; }
+} catch (error) {}
+
+document.addEventListener('DOMContentLoaded', function () {
+	if (window.matchMedia('(max-width: 850px)').matches) {
+		document.getElementById('details').open = false;
+	}
+
+	for (const button of document.getElementsByClassName('button')) {
+		button.addEventListener('click', function () {
+			this.classList.toggle('closed');
+			const content = this.nextElementSibling;
+			content.style.display = getComputedStyle(content).display === 'none' ? 'block' : 'none';
+		});
+	}
+
+	for (const link of document.getElementsByClassName('magic')) {
+		link.addEventListener('click', function (event) {
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keydown', function (event) {
+			if (event.key !== 'Enter' && event.key !== ' ') { return; }
+			event.preventDefault();
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keyup', function (event) {
+			if (event.key === ' ') { event.preventDefault(); }
+		});
+	}
+
+	function reveal(index) {
+		const target = document.getElementById('m' + index);
+		if (!target) { return; }
+		let content = target.parentElement.closest('.content');
+		while (content) {
+			content.style.display = 'block';
+			content.previousElementSibling.classList.remove('closed');
+			content = content.parentElement.closest('.content');
+		}
+		setTimeout(function () {
+			target.focus({preventScroll: true});
+			target.scrollIntoView({block: 'center', behavior: 'smooth'});
+			target.classList.add('flash');
+			setTimeout(function () { target.classList.remove('flash'); }, 1600);
+		}, 10);
+	}
+
+	const themeButton = document.getElementById('theme');
+	const themeNames = {auto: 'automatic', dark: 'dark', light: 'light'};
+	const nextTheme = {auto: 'dark', dark: 'light', light: 'auto'};
+	const currentTheme = function () { return document.documentElement.dataset.theme || 'auto'; };
+	const labelTheme = function () {
+		const text = 'Appearance: ' + themeNames[currentTheme()];
+		themeButton.title = text;
+		themeButton.setAttribute('aria-label', text);
+	};
+	themeButton.addEventListener('click', function () {
+		const next = nextTheme[currentTheme()];
+		try {
+			if (next === 'auto') { localStorage.removeItem('sss-theme'); } else { localStorage.setItem('sss-theme', next); }
+		} catch (error) {}
+		if (next === 'auto') { delete document.documentElement.dataset.theme; } else { document.documentElement.dataset.theme = next; }
+		labelTheme();
+	});
+	labelTheme();
+});
+</script>
 </head>
 <body>
-<p class="nav"><a href="/shortcut-source-saver/index.html">&#8592; All shortcuts</a></p>
 
-<button class="button gParams" id="mheader"><b>Linear Shortcut</b> (5 actions, iOS 18)</button><div class="content">
-<div class="row"><div class="col1">Colour</div><div class="col2"><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</div></div>
-<div class="row"><div class="col1">Identifier</div><div class="col2">11111111-2222-3333-4444-555555555555</div></div>
-<div class="row"><div class="col1">Created</div><div class="col2">2025-03-01 09:30 UTC</div></div>
-<div class="row"><div class="col1">Modified</div><div class="col2">2025-06-14 17:05 UTC</div></div>
-<div class="row"><div class="col1">Icon</div><div class="col2">#4F9BFF, glyph 59511</div></div>
-<div class="row"><div class="col1">Client version</div><div class="col2">3216</div></div>
-<div class="row"><div class="col1">Minimum client version</div><div class="col2">3010</div></div>
-<div class="row"><div class="col1">Workflow types</div><div class="col2">ActionExtension, NCWidget, WFWorkflowTypeShowInSearch</div></div>
-<div class="row"><div class="col1">Accepts</div><div class="col2">Text</div></div>
-</div>
-<button class="button gYellow" id="m0">0 Text　» <span class="magic" data-target="1">1</span></button><div class="content">
+<header class="topbar">
+<a class="brand" href="/shortcut-source-saver/index.html"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span>My Shortcuts</span></a>
+<button type="button" class="icon-button" id="theme" title="Appearance: automatic" aria-label="Appearance: automatic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+</header>
+<main>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/shortcut-source-saver/index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg> All shortcuts</a><span aria-hidden="true">/</span><span>Linear Shortcut</span></nav>
+
+<div class="detail-heading"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><div><span class="eyebrow">Shortcut</span><h1>Linear Shortcut</h1></div></div>
+<div class="detail-meta"><span>5 actions</span><span>iOS 18</span><span>Modified 2025-06-14</span></div>
+<div class="detail-grid">
+
+<aside class="detail-side" aria-labelledby="details-heading">
+<details class="meta-panel" id="details" open>
+<summary><h2 id="details-heading">Details</h2></summary>
+<dl class="meta-list">
+<div><dt>Colour</dt><dd><span class="swatch" style="background-color: #4F9BFF"></span> #4F9BFF</dd></div>
+<div><dt>Identifier</dt><dd>11111111-2222-3333-4444-555555555555</dd></div>
+<div><dt>Created</dt><dd>2025-03-01 09:30 UTC</dd></div>
+<div><dt>Modified</dt><dd>2025-06-14 17:05 UTC</dd></div>
+<div><dt>Icon</dt><dd>#4F9BFF, glyph 59511</dd></div>
+<div><dt>Client version</dt><dd>3216</dd></div>
+<div><dt>Minimum client version</dt><dd>3010</dd></div>
+<div><dt>Workflow types</dt><dd>ActionExtension, NCWidget, WFWorkflowTypeShowInSearch</dd></div>
+<div><dt>Accepts</dt><dd>Text</dd></div>
+</dl>
+</details>
+</aside>
+<section class="actions" aria-labelledby="actions-heading">
+<div class="section-heading"><h2 id="actions-heading">Actions</h2><span>In execution order</span></div>
+<button class="button gYellow" id="m0"><span class="step">0</span>Text　» <span class="magic" data-target="1" role="link" tabindex="0">1</span></button><div class="content">
 <div class="col2">Hello, world &amp; &lt;friends&gt;</div>
 </div>
-<button class="gOrange" id="m1">1 Set Variable <span class="box">greeting</span> to <span class="box"><span class="magic" data-target="0"><b>[0 Text]</b></span></span></button>
-<button class="button gOrange" id="m2">2 Dictionary</button><div class="content">
+<button class="gOrange" id="m1"><span class="step">1</span>Set Variable <span class="box">greeting</span> to <span class="box"><span class="magic" data-target="0" role="link" tabindex="0"><b>[0 Text]</b></span></span></button>
+<button class="button gOrange" id="m2"><span class="step">2</span>Dictionary</button><div class="content">
 <div class="col2">{
    &#34;name&#34;: Ada,
    &#34;role&#34;: engineer
 }</div>
 </div>
-<button class="gGray" id="m3">3 Wait 1 seconds</button>
-<button class="button gYellow" id="m4">4 Show Content<b>　➔ Result</b></button><div class="content">
+<button class="gGray" id="m3"><span class="step">3</span>Wait 1 seconds</button>
+<button class="button gYellow" id="m4"><span class="step">4</span>Show Content<b>　➔ Result</b></button><div class="content">
 <div class="col2">Greeting: <span class="var"><b>[greeting]</b></span></div>
 </div>
-<script>
-for (const button of document.getElementsByClassName('button')) {
-	button.addEventListener('click', function () {
-		this.classList.toggle('closed');
-		const content = this.nextElementSibling;
-		content.style.display = getComputedStyle(content).display === 'none' ? 'block' : 'none';
-	});
-}
-
-for (const link of document.getElementsByClassName('magic')) {
-	link.addEventListener('click', function (event) {
-		event.stopPropagation();
-		reveal(this.dataset.target);
-	});
-}
-
-function reveal(index) {
-	const target = document.getElementById('m' + index);
-	if (!target) { return; }
-	let parent = target;
-	while ((parent = parent.parentNode).tagName.toLowerCase() === 'div') {
-		parent.style.display = 'block';
-		parent.previousElementSibling.classList.remove('closed');
-	}
-	setTimeout(function () { target.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, 10);
-}
-</script>
+</section>
+</div>
+</main>
 </body>
 </html>

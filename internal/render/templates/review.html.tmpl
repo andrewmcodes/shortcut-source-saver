@@ -2,45 +2,81 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="format-detection" content="telephone=no,date=no">
 <title>{{.Title}}</title>
 {{if .Stylesheet}}<link rel="stylesheet" href="{{.Stylesheet}}">{{else}}<style>
 {{.InlineCSS}}</style>{{end}}
+<script>
+{{- template "theme-boot"}}
+
+document.addEventListener('DOMContentLoaded', function () {
+	if (window.matchMedia('(max-width: 850px)').matches) {
+		document.getElementById('details').open = false;
+	}
+
+	for (const button of document.getElementsByClassName('button')) {
+		button.addEventListener('click', function () {
+			this.classList.toggle('closed');
+			const content = this.nextElementSibling;
+			content.style.display = getComputedStyle(content).display === 'none' ? 'block' : 'none';
+		});
+	}
+
+	for (const link of document.getElementsByClassName('magic')) {
+		link.addEventListener('click', function (event) {
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keydown', function (event) {
+			if (event.key !== 'Enter' && event.key !== ' ') { return; }
+			event.preventDefault();
+			event.stopPropagation();
+			reveal(this.dataset.target);
+		});
+		link.addEventListener('keyup', function (event) {
+			if (event.key === ' ') { event.preventDefault(); }
+		});
+	}
+
+	function reveal(index) {
+		const target = document.getElementById('m' + index);
+		if (!target) { return; }
+		let content = target.parentElement.closest('.content');
+		while (content) {
+			content.style.display = 'block';
+			content.previousElementSibling.classList.remove('closed');
+			content = content.parentElement.closest('.content');
+		}
+		setTimeout(function () {
+			target.focus({preventScroll: true});
+			target.scrollIntoView({block: 'center', behavior: 'smooth'});
+			target.classList.add('flash');
+			setTimeout(function () { target.classList.remove('flash'); }, 1600);
+		}, 10);
+	}
+{{template "theme-script"}}
+});
+</script>
 </head>
 <body>
+{{template "topbar" .Chrome}}
+<main>
 {{- with .Home}}
-<p class="nav"><a href="{{.}}">&#8592; All shortcuts</a></p>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{.}}">{{template "icon-back"}} All shortcuts</a><span aria-hidden="true">/</span><span>{{$.Title}}</span></nav>
 {{- end}}
 {{template "header" .Header}}
+<div class="detail-grid">
+{{template "details" .Header}}
+<section class="actions" aria-labelledby="actions-heading">
+<div class="section-heading"><h2 id="actions-heading">Actions</h2><span>In execution order</span></div>
+{{- with .Header}}{{if .Corrupted}}
+<p class="notice">{{template "icon-warning"}}<span>This shortcut is <span class="magic flagged" data-target="{{.CorruptedAt}}" role="link" tabindex="0">corrupted at action {{.CorruptedAt}}</span>. The flagged rows under Details say why.</span></p>
+{{- end}}{{end}}
 {{- template "items" .Items}}
-<script>
-for (const button of document.getElementsByClassName('button')) {
-	button.addEventListener('click', function () {
-		this.classList.toggle('closed');
-		const content = this.nextElementSibling;
-		content.style.display = getComputedStyle(content).display === 'none' ? 'block' : 'none';
-	});
-}
-
-for (const link of document.getElementsByClassName('magic')) {
-	link.addEventListener('click', function (event) {
-		event.stopPropagation();
-		reveal(this.dataset.target);
-	});
-}
-
-function reveal(index) {
-	const target = document.getElementById('m' + index);
-	if (!target) { return; }
-	let parent = target;
-	while ((parent = parent.parentNode).tagName.toLowerCase() === 'div') {
-		parent.style.display = 'block';
-		parent.previousElementSibling.classList.remove('closed');
-	}
-	setTimeout(function () { target.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, 10);
-}
-</script>
+</section>
+</div>
+</main>
 </body>
 </html>
 {{end}}

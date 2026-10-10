@@ -117,7 +117,7 @@ App Intent parameters can be structured objects, and the text to show sits at a 
 
 ## Colour groups
 
-`Group` is both the group name and the CSS class, because the stylesheet lifted from the same shortcut (`internal/render/assets/shortcut-source-tool.css`) is keyed by these exact names and already carries light and dark variants of each.
+`Group` is both the group name and the CSS class, because the action markup keeps the class names of the shortcut it was lifted from; `internal/render/assets/actions.css` maps each one to a Radix colour scale for the step badge (see [rendering.md](rendering.md#colour-groups)).
 
 | group | colour | actions |
 | --- | --- | --- |

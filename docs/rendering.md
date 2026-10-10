@@ -2,7 +2,7 @@
 
 This document explains `internal/render`, the package that turns a `shortcuts.Workflow` into the three human-readable artefacts: the per-shortcut web review, the per-shortcut `README.md`, and the GitHub Pages site. It is the counterpart to [archive.md](archive.md): that document covers the machine-readable files, this one covers the ones a person reads.
 
-The design of the web review — the collapsible per-action buttons, the colour groups, the class names in `assets/shortcut-source-tool.css` — is taken from gluebyte's Shortcut Source Tool, a Shortcut that renders a shortcut as an HTML page. Its logic was extracted and reimplemented in Go; the class names are kept identical so the extracted stylesheet needs no translation layer.
+The structure of the web review — the collapsible per-action buttons, the colour groups, the class names on the action markup — is taken from gluebyte's Shortcut Source Tool, a Shortcut that renders a shortcut as an HTML page. Its logic was extracted and reimplemented in Go, and the class names (`button`, `content`, `contentloop`, `nonbottom`, `gYellow`, …) are kept so the two can still be compared side by side. The visual design is not the reference's: it follows the Shortcut Atlas mockup, described in [The site design](#the-site-design) below.
 
 ## The API
 
@@ -11,7 +11,7 @@ The design of the web review — the collapsible per-action buttons, the colour 
 | `WebReview(w)` / `WebReviewWithOptions(w, opts)` | one self-contained HTML page (CSS inlined, no external requests, no images) |
 | `ShortcutREADME(w)` / `ShortcutREADMEWithOptions(w, opts)` | Markdown for `shortcuts/<slug>/README.md` |
 | `Site(entries, opts)` | `map[relative path][]byte` — `index.html`, `shortcuts/<slug>.html` per entry, `assets/style.css` |
-| `Stylesheet()` | the concatenated stylesheet, for callers that write it themselves |
+| `Stylesheet()` | the concatenated stylesheet (`assets/radix-colors.css`, `assets/site.css`, `assets/actions.css`, in that order), for callers that write it themselves |
 
 `Options.ExpandAll` disables the collapse-large-content heuristic. `Options.SiteURL` switches the README's review link from the sibling `review.html` to the hosted page. `Options.ShortcutFile` names the importable binary the README links to (default `shortcut.shortcut`), because the caller chooses that name. `SiteOptions.BaseURL` is the prefix for a GitHub Pages *project* site (`/repo-name`); every internal link is built through it, and when it is empty the site is linked relatively (`../assets/style.css`) so it also works from a `file://` checkout.
 
@@ -31,9 +31,9 @@ So the renderer never builds HTML by string concatenation. It builds a tree of `
 | `var` / `magic` / `flag` | a variable, a clickable magic variable, a flagged (broken) reference |
 | `bold` / `italic` / `break` | `<b>` / `<i>` / `<br>` |
 
-The two places where trusted-but-structured text has to reach the output are handled with the types `html/template` provides for exactly that, rather than by disabling escaping: the stylesheet is inlined as `template.CSS`, and the icon colour reaches the `style` attribute of a swatch as `template.CSS`.
+The two places where trusted-but-structured text has to reach the output are handled with the types `html/template` provides for exactly that, rather than by disabling escaping: the stylesheet is inlined as `template.CSS`, and the icon colour reaches `style` attributes as `template.CSS` — as `background-color` on the swatch and as the `--icon` custom property on the shortcut tile.
 
-Magic-variable links carry their target in `data-target` and are wired up by one delegated listener in the page's static script. There is no interpolation into a JavaScript context anywhere, which both avoids `html/template`'s JS-context padding of numbers and keeps the markup readable.
+Magic-variable links carry their target in `data-target` and are wired up by a listener in the page's static script. There is no interpolation into a JavaScript context anywhere, which both avoids `html/template`'s JS-context padding of numbers and keeps the markup readable.
 
 ### Invisible characters are made visible
 
@@ -71,7 +71,7 @@ Unbalanced blocks occur in the wild — Shortcuts itself will happily store them
 2. **A mode 1/2 action whose grouping matches but whose identifier does not** — an `End Repeat` closing an `If`. The block *is* closed (the grouping identifier is authoritative) and the action is flagged.
 3. **Blocks still open at the end of the workflow.** Nothing to do structurally, because the tree closes them; the header records which action opened the block that never closes.
 
-In every case the header card grows a red `corrupted` link to the offending action and the README grows a warning callout. Rendering always continues, and the page is always well-formed — the golden tests assert both, including tag balance.
+In every case the review grows a notice above the actions with a red `corrupted at action N` link to the offending action, a `Flagged` marker in the heading's metadata line and red rows in the Details panel, and the README grows a warning callout. Rendering always continues, and the page is always well-formed — the golden tests assert both, including tag balance.
 
 ### Values of the wrong type are flagged, not coerced
 
@@ -147,34 +147,70 @@ Enumeration operands arrive wrapped as `WFStringSubstitutableState`, which, like
 
 ## Colour groups
 
-The button colour is a class, not a style, so dark mode is a single `prefers-color-scheme` block in the stylesheet:
+The group is a class on the button, not a style. It colours the action's step-number badge, by setting `--g-bg` and `--g-text` to steps 4 and 11 of a Radix scale, so dark mode comes for free when the scale switches:
 
-| class | meaning |
-| --- | --- |
-| `gGray` | control flow and scripting |
-| `gGreen`, `gYellow`, `gOrange`, `gRed`, `gBlue` | the catalog's group for the action |
-| `gApple` | not in the catalog, but an `is.workflow.actions.` / `com.apple.` identifier |
-| `gUnknown` | not in the catalog and not Apple's — a third-party app intent |
-| `gParams` | the header card |
+| class | meaning | Radix scale |
+| --- | --- | --- |
+| `gGray` | control flow and scripting | slate |
+| `gGreen`, `gYellow`, `gOrange`, `gRed`, `gBlue` | the catalog's group for the action | teal, amber, orange, ruby, indigo |
+| `gApple` | not in the catalog, but an `is.workflow.actions.` / `com.apple.` identifier | violet |
+| `gUnknown` | not in the catalog and not Apple's — a third-party app intent | cyan |
+
+Control-flow blocks are tinted separately, by the `nonbottom` / `nontop` classes rather than the group, so a block's opener, branches and closer read as one indigo frame whatever the catalog group of the action.
 
 An action missing from the catalog is expected, not exceptional: it means the shortcut uses an intent from an OS or app newer than `catalog/data/actions.json`. Its title comes from `catalog.DisplayName`, and `gApple` versus `gUnknown` tells the reader which kind of gap they are looking at.
 
 ## Collapsing
 
-Every action with content is collapsible, by CSS plus a five-line script that toggles a `closed` class and the sibling div's `display`. No framework, no images: a review of a 400-action shortcut is one file that opens instantly.
+Every action with content is collapsible, by CSS plus a few lines of script that toggle a `closed` class (which turns the chevron) and the sibling div's `display`. Following a magic variable expands every collapsed `.content` ancestor of the target, moves focus to it, scrolls it to the middle of the screen and briefly rings it.
+
+Magic variables — the variable chips, the `» 3 7` consumer lists, the `▵` block links, import-question targets and the corrupted notice — are spans with `role="link"` and `tabindex="0"`, so they are in the tab order and announced as links. Enter or Space on a focused one jumps to its target; the handler stops the key event so it does not also toggle the action button that contains it, and Space's default page scroll is suppressed. A focused link shows a cyan focus ring. They remain spans inside the action `<button>` rather than real anchors, because the reference's markup makes the whole title row a button; a screen reader may therefore flatten them into the button's name, which is a known limitation of that structure. No framework, no images: a review of a 400-action shortcut is one file that opens instantly.
 
 Content that would drown the page is collapsed to start with: a body over 10 000 characters or 80 newlines, or any labelled row over 1 000 characters. The thresholds are the reference's, and they are about the page, not the data — `Options.ExpandAll` renders everything open for when the reader wants to search the whole page with the browser's find.
 
 ## The README and the site
 
-Both the header card and the README metadata table show the workflow-level settings a reader needs to use the shortcut, each only when it is set, so a shortcut without them gets no empty rows: `Accepts` and `Output` (the input and output content item classes, named the same way as a coercion and split into words, so `WFSafariWebPageContentItem` reads as Safari Web Page; an app-entity class such as `WFLinkEntityContentItem_com.apple.mobilenotes_SavePhotosEntity` is reduced to its entity name, Save Photos), `Output fallback`, `Shortcut input variables`, and one `Import question` row per entry of `WFWorkflowImportQuestions` — the question's text, the parameter it fills in, a link to the action it targets, and its default value when there is one. The README lists the import questions as their own section above the outline. Those defaults are exactly where a shared shortcut's author leaves their own API key, which is why the backup scans import questions before anything is written ([secret-scanning.md](secret-scanning.md)).
+Both the review's Details panel and the README metadata table show the workflow-level settings a reader needs to use the shortcut, each only when it is set, so a shortcut without them gets no empty rows: `Accepts` and `Output` (the input and output content item classes, named the same way as a coercion and split into words, so `WFSafariWebPageContentItem` reads as Safari Web Page; an app-entity class such as `WFLinkEntityContentItem_com.apple.mobilenotes_SavePhotosEntity` is reduced to its entity name, Save Photos), `Output fallback`, `Shortcut input variables`, and one `Import question` row per entry of `WFWorkflowImportQuestions` — the question's text, the parameter it fills in, a link to the action it targets, and its default value when there is one. The README lists the import questions as their own section above the outline. Those defaults are exactly where a shared shortcut's author leaves their own API key, which is why the backup scans import questions before anything is written ([secret-scanning.md](secret-scanning.md)).
 
-The README is deliberately plain Markdown so GitHub renders it: a metadata table, links to the importable binary and the web review, and the action outline as a nested bullet list, one line per action, indented by control-flow depth with the action's index in a code span. The outline summary is the same title the web review shows, with markup and the review's navigation affordances stripped and whitespace collapsed. A line break inside a title, which only the grouped-condition form of `If` produces, becomes `; ` so the conditions do not run together on one line. There is no colour swatch image, because the only ways to draw one in GitHub Markdown are an external image service or inline styles GitHub strips; the hex value is in the table and the site index draws the real swatch.
+The README is deliberately plain Markdown so GitHub renders it: a metadata table, links to the importable binary and the web review, and the action outline as a nested bullet list, one line per action, indented by control-flow depth with the action's index in a code span. The outline summary is the same title the web review shows, with markup and the review's navigation affordances stripped and whitespace collapsed. A line break inside a title, which only the grouped-condition form of `If` produces, becomes `; ` so the conditions do not run together on one line. There is no colour swatch image, because the only ways to draw one in GitHub Markdown are an external image service or inline styles GitHub strips; the hex value is in the table and the site draws the real colour.
 
-The site is returned as a map of relative path to bytes rather than written directly, so the caller owns file writing, change detection and git. Slugs come from `archive.Slug` (or `Entry.Slug`), with `-2`, `-3` suffixes if two shortcuts collide. The index is a table of name, action count, modified date and swatch, sorted case-insensitively by name for a stable file, and sortable in the browser by clicking a column header — numeric and date columns carry a `data-sort` attribute so the sort is not lexical.
+The site is returned as a map of relative path to bytes rather than written directly, so the caller owns file writing, change detection and git. Slugs come from `archive.Slug` (or `Entry.Slug`), with `-2`, `-3` suffixes if two shortcuts collide. The index is a grid of cards, one per shortcut, sorted case-insensitively by name for a stable file; what the cards show and how they are filtered is described next.
+
+## The site design
+
+The look of the site — palette, type, spacing, the topbar, the card library and the shortcut page — follows the Shortcut Atlas mockup. That mockup is a browser-only app that imports exports, draws a dependency map and shares links; only the visual design and the browsing affordances that work on a static, generated page were ported.
+
+### Colour and theming
+
+Colours come from Radix Colors 3.0.0 (MIT; the full licence is kept beside the file as `assets/radix-colors.LICENSE`). The first line of `assets/radix-colors.css` is a one-line `/*! … */` notice naming the project, its licence and its copyright holders; because that file is concatenated first, the notice opens the published `assets/style.css` and the stylesheet inlined in standalone reviews, so every copy of the colours carries it. It is an approved exception to the project's no-comments rule, made because the MIT licence asks for its notice to travel with copies, and it is the only comment in the generated output. `assets/radix-colors.css` is generated from the published `@radix-ui/colors` scales, keeping only the nine the design uses: slate for neutrals; indigo for the accent, control flow and `gBlue`; amber for warnings and `gYellow`; ruby for flagged text and `gRed`; teal, orange, violet and cyan for the other colour groups; and pink only in the brand mark's cyan-indigo-pink gradient. Each scale is declared three times — light on `:root`, dark under `:root[data-theme="dark"]`, and dark under `prefers-color-scheme: dark` unless `data-theme="light"` — so the system setting is the default and an explicit choice wins in both directions. `assets/site.css` maps those steps onto a handful of semantic tokens (`--bg`, `--surface`, `--line`, `--muted`, `--accent`, `--warning`, `--danger`) and everything else uses the tokens, so nothing else needs a dark-mode rule.
+
+The sun button in the topbar cycles automatic → dark → light and stores the choice in `localStorage` under `sss-theme`. The stored value is applied by the first statement of the page's only script, in `<head>`, so a page never flashes the wrong theme; the rest of that script waits for `DOMContentLoaded`. Keeping one script per page is deliberate: the escaping test counts `<script` occurrences to prove shortcut text cannot add one.
+
+Nothing is fetched at view time: the stylesheet is one file (or inlined in the standalone review), icons are inline SVG, and fonts are the system stack. The shortcut tile is drawn from the shortcut's real icon colour, mixed toward the surface for the background and toward the text colour for the glyph with `color-mix`, so it stays legible in both themes; the glyph itself is a generic layers icon, because the Shortcuts glyph number has no public artwork.
+
+Mixing does not rescue a black icon: in dark mode a black tile on a near-black surface with a mostly-black glyph all but disappears, and black is the single most common colour in a real library. So `isDarkColor` computes the colour's WCAG relative luminance in Go and, below 0.05 (black and the near-black greys; the mid greys `#A9A9A9` and `#B4B2A9` stay coloured), the tile gets a `dark-icon` class. That class ignores the colour and uses neutral steps instead — `slate-4` background, `slate-12` glyph, a `slate-7` ring — which flip with the theme on their own: a light-grey tile with a black glyph in light mode, a lifted dark-grey tile with a white glyph in dark mode. The decision is made at build time from the stored colour, so it is deterministic and needs no relative-colour CSS support in the browser.
+
+### The index
+
+A heading with the site title and a `Last change` badge (the newest modification date across the library), then a collapsible Library overview with the shortcut, action and flagged counts. Below it, a toolbar with search, a filter (all shortcuts or only flagged ones) and a sort (name, most actions, recently modified), then the cards. A card shows the colour tile, the minimum iOS version when known, the name, the action count and the modification date, and a warning line when the review flags the shortcut — "flagged" means exactly what the review's notice means: corrupted control flow or a malformed value.
+
+The toolbar is `hidden` in the markup and revealed by the script, so without JavaScript the page is simply the full list in name order. The script filters by matching the search text against each card's name and toggling `hidden`, and sorts by reordering the existing cards using `data-actions` and `data-modified` (RFC 3339, so it sorts as a string); "name" restores the order the server wrote. `/` focuses the search box. At phone width the cards collapse into a single bordered list of rows, as in the mockup.
+
+### The shortcut page
+
+A breadcrumb back to the index, a heading with the colour tile and the name, a metadata line (actions, iOS version, modification date, `Flagged` when it is), then two columns: the action sequence and a sticky Details panel holding the colour and every metadata row, import question and flag reason the header used to carry. Below 850px the panel moves above the actions and starts collapsed, so a phone opens on the actions with the details one tap away.
+
+Each action is a card. The step number moved out of the title text into a `step` badge coloured by the action's group; that is the only change to the action markup, and the README is unaffected because it never used the label. Parameter rows are a two-column grid, a full-width body is a monospaced block, comments are amber, and parameter values inside a title are small chips. Control-flow nesting keeps the reference's structure and classes: a block is the opener, an indigo-bordered `contentloop` per branch and the closer, joined into one frame, with the left border cycling solid, dotted and dashed by depth and nested items sharing their parent's right edge (`inside`).
+
+### Deliberately left out
+
+- **The sidebar.** Its entries in the mockup — collections, the dependency map — have no counterpart in a backup, and a one-link sidebar would take width the action titles need.
+- **Import, share and download dialogs, and the dependency map.** They need user uploads or relationships the renderer does not compute. Resolving Run Shortcut actions across the library would make a map possible, but it is a feature, not a restyle.
+- **App icons.** The mockup looks artwork up from the App Store at view time, which would be an external request.
+- **Library-wide numbers on shortcut pages.** Putting the library count or a "called by" list on every page would make each new shortcut rewrite every page in the site, and a git diff is supposed to mean the shortcut changed.
 
 ## Tests
 
 `render_test.go` drives fifteen hand-built workflows through all three outputs and compares against golden files in `testdata/`; run `go test ./internal/render/ -update` to regenerate them, and read the diff as the review it is. The fixtures cover a linear shortcut (with a dictionary and a slot default), nested `If`/`Otherwise`/`End If` including the multi-condition and "is between" forms, a `Repeat` containing a `Menu` containing an `If` (which is what exercises all three depth cues), unbalanced blocks in all three broken shapes, a magic-variable chain with aggrandizements and a dangling output, a token string whose attachment offsets sort differently as numbers than as strings, uncatalogued Apple and third-party actions, text made of `<script>`, quotes, zero-width, non-breaking and control characters, and variables buried in one and two layers of serialization wrapper. Six more are adapted from the examples in the shortcuts-generator reference (see [reference-notes.md](reference-notes.md)): a Find Photos filter table covering every operand shape, a menu with `WFMenuItems`, a Repeat with Each using Repeat Item/Index and the built-in variable sources, string-typed modes and conditions, a token string whose attachment offset is off by one, and a workflow with import questions and input/output classes.
 
-Beyond the goldens the tests assert what the goldens cannot: that every output is byte-identical across two runs, that every opened tag closes in LIFO order (a hand-rolled scan, to avoid taking a dependency on `golang.org/x/net/html`), that shortcut text cannot introduce a tag, that no README contains an HTML-only `\u…` escape, that the token-string splice order follows the numeric offsets, and that `ExpandAll`, base URLs, relative links and slug collisions behave.
+Beyond the goldens the tests assert what the goldens cannot: that every output is byte-identical across two runs, that every opened tag closes in LIFO order (a hand-rolled scan, to avoid taking a dependency on `golang.org/x/net/html`), that shortcut text cannot introduce a tag, that no README contains an HTML-only `\u…` escape, that the token-string splice order follows the numeric offsets, that `ExpandAll`, base URLs, relative links and slug collisions behave, that the index marks and counts exactly the shortcuts the reviews flag, and that no generated file references an external resource.
