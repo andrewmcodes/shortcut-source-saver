@@ -41,7 +41,6 @@ func Default() *Config {
 		SignMode:      SignModeAnyone,
 		SiteDir:       "docs",
 		SiteTitle:     "My Shortcuts",
-		BaseURL:       "/",
 		AutoCommit:    true,
 		AutoPush:      false,
 		IncludeSigned: true,
@@ -130,7 +129,6 @@ func (c *Config) resolve() error {
 		c.SiteDir = site
 	}
 
-	c.BaseURL = normalizeBaseURL(c.BaseURL)
 	return nil
 }
 
@@ -163,16 +161,7 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.SiteDir) == "" {
 		return errors.New("site_dir must not be empty")
 	}
-	c.BaseURL = normalizeBaseURL(c.BaseURL)
 	return nil
-}
-
-func normalizeBaseURL(raw string) string {
-	trimmed := strings.Trim(strings.TrimSpace(raw), "/")
-	if trimmed == "" {
-		return "/"
-	}
-	return "/" + trimmed + "/"
 }
 
 func (c *Config) SitePath() string {
@@ -201,10 +190,6 @@ site_dir = "docs"
 
 # Title shown on the generated site.
 site_title = "My Shortcuts"
-
-# URL prefix the site is served under. Use "/<repo-name>/" for a GitHub Pages
-# project site, "/" for a user or organisation site.
-base_url = "/"
 
 # Commit generated files after a successful backup.
 auto_commit = true

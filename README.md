@@ -119,7 +119,6 @@ repo_path      = "~/git/my-shortcuts"  # required
 sign_mode      = "anyone"              # or "people-who-know-me"
 site_dir       = "docs"
 site_title     = "My Shortcuts"
-base_url       = "/my-shortcuts/"      # for GitHub Pages project sites
 auto_commit    = true
 auto_push      = false
 include_signed = true
@@ -131,6 +130,8 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 ## Publishing the web reviews
 
 `sss init` scaffolds a GitHub Actions workflow in your backup repo that publishes `docs/` to GitHub Pages. Push the repo, then enable **Settings → Pages → GitHub Actions**.
+
+To browse the site without publishing it, open `docs/index.html` straight from disk; every link is relative, so no server or build step is needed.
 
 The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The details panel lists what the shortcut accepts and outputs, any questions it asks on import, which shortcuts it runs and which run it. Run Shortcut actions are matched to shortcuts in the backup by workflow identifier, then by name, and the dependency map draws the result, flagging calls to shortcuts that are not in the backup.
 

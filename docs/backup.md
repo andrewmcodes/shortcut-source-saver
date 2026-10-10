@@ -101,13 +101,13 @@ sss -o ~/Desktop/shortcuts
 | git repository | required to commit | never needed |
 | directory missing | created on first write; quitting the picker leaves nothing behind | same |
 | commit / push | per `auto_commit`, `auto_push`, `--no-commit`, `--push` | never, even when `DIR` is inside a git repository |
-| site | `site_dir`, linked under `base_url` | `DIR/<site_dir>` with relative links |
+| site | `site_dir`, relative links | `DIR/<site_dir>`, relative links |
 
 **It never touches git, even when `DIR` happens to be inside a repository.** Running `sss backup --all -o ./shortcuts` from a project's root would otherwise commit a backup into that unrelated project. Committing is what `--repo` and `repo_path` are for: they name a repository you chose for backups, `--output` names a folder. Because git is never invoked, this mode also works without git installed.
 
 **`--output` conflicts with `--push` and `--repo`, enforced with cobra's `MarkFlagsMutuallyExclusive`.** With no commit there is nothing to push, and silently ignoring `--push` would let someone believe a backup was published when it was not. `--repo` names a different destination, so the two together have no sensible meaning. Both conflicts are rejected before the Shortcuts database is opened. `--no-commit` is allowed and redundant.
 
-**A config file is read if one exists, but only for how files look, never for where they go or what happens after.** `sign_mode`, `include_signed`, `include_hidden`, and `site_title` still apply, so a backup into a folder is signed for the same audience as your repository backup. `repo_path`, `auto_commit`, and `auto_push` are ignored. An absolute `site_dir` is replaced by the default `docs`, because it would otherwise write the site into whatever real repository it points at; everything this mode writes stays inside `DIR`. `base_url` is ignored and the site uses relative links, because a folder is not served from a known URL prefix and root-absolute links (`/assets/style.css`) break when `docs/index.html` is opened from disk.
+**A config file is read if one exists, but only for how files look, never for where they go or what happens after.** `sign_mode`, `include_signed`, `include_hidden`, and `site_title` still apply, so a backup into a folder is signed for the same audience as your repository backup. `repo_path`, `auto_commit`, and `auto_push` are ignored. An absolute `site_dir` is replaced by the default `docs`, because it would otherwise write the site into whatever real repository it points at; everything this mode writes stays inside `DIR`.
 
 **The site is still built.** The layout is identical to a backup repository — `shortcuts/` plus `docs/` — so `DIR` can later be turned into one with `git init` and used with `--repo` without reshuffling anything, and the web reviews are browsable straight from the folder. `BuildSite` already reads from the destination directory rather than the library, so the index covers every shortcut previously backed up into `DIR`, not only this run's.
 

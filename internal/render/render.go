@@ -71,7 +71,6 @@ type Entry struct {
 
 type SiteOptions struct {
 	Title     string
-	BaseURL   string
 	ExpandAll bool
 }
 
@@ -468,14 +467,14 @@ type indexRow struct {
 func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 	out := map[string][]byte{StylesheetPath: Stylesheet()}
 	title := siteTitle(opts)
-	root := prefix(opts.BaseURL, 0)
+	root := prefix(0)
 	index := indexPage{
 		Title:      title,
 		Stylesheet: root + StylesheetPath,
 		Chrome:     chrome{SiteTitle: title, Home: root + IndexPath, MapHref: root + MapPath},
 		MapHref:    root + MapPath,
 	}
-	pageChrome := chrome{SiteTitle: title, Home: prefix(opts.BaseURL, 1) + IndexPath, MapHref: prefix(opts.BaseURL, 1) + MapPath}
+	pageChrome := chrome{SiteTitle: title, Home: prefix(1) + IndexPath, MapHref: prefix(1) + MapPath}
 
 	taken := map[string]bool{}
 	slugs := make([]string, len(entries))
@@ -486,16 +485,16 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		slugs[i] = uniqueSlug(entry, taken)
 	}
 	graph := newSiteGraph(entries, slugs)
-	pageHref := func(slug string) string { return prefix(opts.BaseURL, 1) + path.Join(ShortcutsDirname, slug+".html") }
+	pageHref := func(slug string) string { return prefix(1) + path.Join(ShortcutsDirname, slug+".html") }
 	rootHref := func(slug string) string { return root + path.Join(ShortcutsDirname, slug+".html") }
 
 	rows := make([]indexRow, 0, len(entries))
 	var latest time.Time
 	for i, entry := range entries {
 		slug := slugs[i]
-		deps := graph.pageDeps(i, pageHref, prefix(opts.BaseURL, 1)+MapPath)
+		deps := graph.pageDeps(i, pageHref, prefix(1)+MapPath)
 		rendered := buildPage(entry.Workflow, opts.ExpandAll, deps)
-		rendered.Stylesheet = prefix(opts.BaseURL, 1) + StylesheetPath
+		rendered.Stylesheet = prefix(1) + StylesheetPath
 		rendered.Home = pageChrome.Home
 		rendered.Chrome = pageChrome
 		body, err := execute(pages, "review", rendered)
@@ -585,10 +584,7 @@ func uniqueSlug(entry Entry, taken map[string]bool) string {
 	return candidate
 }
 
-func prefix(baseURL string, depth int) string {
-	if baseURL != "" {
-		return strings.TrimSuffix(baseURL, "/") + "/"
-	}
+func prefix(depth int) string {
 	return strings.Repeat("../", depth)
 }
 

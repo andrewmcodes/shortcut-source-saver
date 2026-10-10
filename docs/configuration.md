@@ -26,7 +26,7 @@ With `--output DIR` no file is needed at all, and a file that does exist only sh
 | `sign_mode` | `"anyone"` | Audience of the generated `.shortcut` files. Either `"anyone"` or `"people-who-know-me"`; these are the only two values `shortcuts sign --mode` accepts. |
 | `site_dir` | `"docs"` | Where the generated GitHub Pages site is written. Relative to `repo_path` unless absolute. `docs` is the default because GitHub Pages can serve it from the default branch with no extra branch to maintain. |
 | `site_title` | `"My Shortcuts"` | Title shown on the generated site. |
-| `base_url` | `"/"` | URL prefix the site is served under. |
+| `base_url` | *(ignored)* | Retired. Still accepted so existing config files load, but the site always uses relative links; see [rendering.md](rendering.md#the-api). |
 | `auto_commit` | `true` | Commit generated files after a successful backup. |
 | `auto_push` | `false` | Push after committing. See below. |
 | `include_signed` | `true` | Write the importable `.shortcut` next to the JSON. |
@@ -65,4 +65,4 @@ The alternative — ignoring keys the program does not recognise — is worse in
 
 `Validate()` is called by `Load` and is safe to call directly. It checks that `repo_path` is non-empty and absolute, that `sign_mode` is one of the two accepted values, and that `site_dir` is non-empty.
 
-It also *normalises* `base_url` in place, trimming any slashes and re-adding exactly one at each end, so `my-shortcuts`, `/my-shortcuts`, and `//my-shortcuts//` all become `/my-shortcuts/`, and an empty value becomes `/`. Site generation can then build links by plain concatenation, with no per-call-site slash juggling and no `//` in the output. A GitHub Pages *project* site is served from `/<repo-name>/`, so getting this wrong breaks every asset and link on the published site; normalising once, centrally, is why it cannot be got wrong twice.
+`base_url` used to set a URL prefix for every site link. With the default `/`, links were root-absolute, so the site broke when `docs/index.html` was opened from disk. Relative links work at any prefix, so the key no longer does anything. Unknown keys are rejected, which is why it is still accepted rather than removed.
