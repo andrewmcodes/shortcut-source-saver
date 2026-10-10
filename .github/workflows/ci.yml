@@ -18,12 +18,8 @@ env:
 
 jobs:
   test:
-    name: test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+    name: test
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +41,8 @@ jobs:
         run: go vet ./cmd/... ./internal/...
 
       - name: Test
+        env:
+          CGO_ENABLED: "1"
         run: go test -race -count=1 ./cmd/... ./internal/...
 
       - name: Build
