@@ -57,6 +57,17 @@ Plist integers decode as `uint64`, which becomes a plain JSON number (as an `int
 
 Nothing reads the tagged form back yet. When something needs to (an import or verify command), the decoder belongs in this package next to `Canonicalize`.
 
+### Known limits of the tagged form
+
+Two plist values do not survive into canonical JSON exactly:
+
+- **`plist.UID` becomes a bare integer.** It is a named `uint64`, so `canonicalizeByKind` emits it as a number indistinguishable from a real integer.
+- **Dates lose sub-second precision**, because the tag stores `time.Unix()`.
+
+Neither matters today. UIDs only occur inside `NSKeyedArchiver` archives, and Shortcuts stores those as opaque `<data>` blobs, which are tagged and preserved byte for byte. A scan of a real 219-shortcut library found 20 `<data>` values, and no UIDs or dates at all. And the signed `.shortcut` is built from the decoded plist, not from the JSON, so nothing importable is affected.
+
+Fixing either would change `shortcut.json` only for shortcuts that contain such a value, so it would not churn an ordinary library. It is worth doing at the same time as the decoder mentioned above, since that is the first point at which the distinction can be lost in practice.
+
 ## Why `WriteJSON` reports whether anything changed
 
 `WriteJSON` returns `changed bool`, and does not touch the file when the bytes it would write are already there. That is not a micro-optimisation — it exists to gate signing.

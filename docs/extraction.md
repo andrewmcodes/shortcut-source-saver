@@ -53,6 +53,8 @@ A `.shortcut` file is a plist dictionary. Every key in it has a database source,
 
 Rows are filtered to `ZTOMBSTONED = 0` (deleted-but-not-yet-purged shortcuts) and to rows that actually have a name and an actions row. `ZHIDDENFROMLIBRARYANDSYNC = 1` marks shortcuts hidden from the library; they are returned with `Hidden` set so the caller can decide, and are excluded by default.
 
+A row that passes those filters but has a `NULL` or empty `ZWORKFLOWID` makes `List` fail with an error naming the shortcut. It is not silently skipped, because the workflow id is the key for slug assignment and disambiguation, and dropping a shortcut from a backup without saying so is worse than stopping. No real library has been seen with one; before this check the same row failed with an anonymous SQL scan error.
+
 ### Fidelity
 
 Decoding `ZSHORTCUTACTIONS.ZDATA` for a 485-action shortcut produced a structure that compares equal to a real Shortcuts export of the same shortcut. The only difference across the entire 419 KB payload was `WFRepeatCount: 5.0` versus `5` — an artefact of how the reference file was serialised to JSON, not a difference in the data. Extraction is faithful.
