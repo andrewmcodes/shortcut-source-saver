@@ -135,6 +135,8 @@ To browse the site without publishing it, open `docs/index.html` straight from d
 
 The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The details panel lists what the shortcut accepts and outputs, any questions it asks on import, which shortcuts it runs and which run it. Run Shortcut actions are matched to shortcuts in the backup by workflow identifier, then by name, and the dependency map shows the result: search for a shortcut, or pick one from a list ranked by how connected each shortcut is, to see what runs it and what it runs, with calls to shortcuts that are not in the backup flagged.
 
+Shortcuts you delete, and sync-conflict copies the Shortcuts app hides, stay in the backup and on the site so you can still find old solutions. They are marked Deleted, kept out of the index, its search and the dependency map until you tick **Show deleted**, and listed in their own "Runs (Deleted)" and "Called by (Deleted)" sections on a shortcut's page.
+
 ## Secrets
 
 Shortcuts frequently embed API keys directly in `Text` and `Get Contents of URL` actions. Publishing a backup to a public repo would publish those keys, permanently.
