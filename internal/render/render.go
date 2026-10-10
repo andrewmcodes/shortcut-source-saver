@@ -25,6 +25,7 @@ var files embed.FS
 
 const (
 	timestampLayout  = "2006-01-02 15:04 MST"
+	dateLayout       = "2006-01-02"
 	StylesheetPath   = "assets/style.css"
 	IndexPath        = "index.html"
 	ShortcutsDirname = "shortcuts"
@@ -40,7 +41,7 @@ var (
 
 func mustReadStyles() string {
 	var b strings.Builder
-	for _, name := range []string{"assets/shortcut-source-tool.css", "assets/site.css"} {
+	for _, name := range []string{"assets/radix-colors.css", "assets/site.css", "assets/actions.css"} {
 		data, err := files.ReadFile(name)
 		if err != nil {
 			panic("render: missing embedded stylesheet " + name)
@@ -75,14 +76,21 @@ type page struct {
 	InlineCSS  template.CSS
 	Stylesheet string
 	Home       string
+	Chrome     chrome
 	Header     pageHeader
 	Items      []*item
+}
+
+type chrome struct {
+	SiteTitle string
+	Home      string
 }
 
 type pageHeader struct {
 	Name        string
 	ActionCount int
 	MinimumOS   string
+	Modified    string
 	Color       template.CSS
 	ColorText   string
 	Rows        []metaRow
@@ -91,9 +99,10 @@ type pageHeader struct {
 }
 
 type metaRow struct {
-	Label string
-	Text  string
-	Nodes []node
+	Label   string
+	Text    string
+	Nodes   []node
+	Flagged bool
 }
 
 func WebReview(w *shortcuts.Workflow) ([]byte, error) {
@@ -106,6 +115,7 @@ func WebReviewWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, error) {
 	}
 	rendered := buildPage(w, opts.ExpandAll)
 	rendered.InlineCSS = template.CSS(styles)
+	rendered.Chrome = chrome{SiteTitle: siteTitle(SiteOptions{})}
 	return execute(pages, "review", rendered)
 }
 
@@ -119,12 +129,20 @@ func buildPage(w *shortcuts.Workflow, expandAll bool) *page {
 	}
 }
 
+func formatDate(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(dateLayout)
+}
+
 func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 	color := archive.HexColor(w.Icon.Color)
 	header := pageHeader{
 		Name:        w.Name,
 		ActionCount: len(w.Actions),
 		MinimumOS:   minimumOS(w),
+		Modified:    formatDate(w.Modified),
 		Color:       template.CSS(color),
 		ColorText:   color,
 		CorruptedAt: -1,
@@ -149,8 +167,9 @@ func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 		header.Corrupted = true
 		header.CorruptedAt = built.CorruptedAt
 		header.Rows = append(header.Rows, metaRow{
-			Label: "Control flow",
-			Text:  fmt.Sprintf("action %d does not match the block it closes", built.CorruptedAt),
+			Label:   "Control flow",
+			Flagged: true,
+			Text:    fmt.Sprintf("action %d does not match the block it closes", built.CorruptedAt),
 		})
 	}
 	if built.Unclosed {
@@ -159,8 +178,9 @@ func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 			header.CorruptedAt = built.UnclosedAt
 		}
 		header.Rows = append(header.Rows, metaRow{
-			Label: "Control flow",
-			Text:  fmt.Sprintf("the block opened by action %d is never closed", built.UnclosedAt),
+			Label:   "Control flow",
+			Flagged: true,
+			Text:    fmt.Sprintf("the block opened by action %d is never closed", built.UnclosedAt),
 		})
 	}
 	if built.MalformedAt >= 0 {
@@ -169,8 +189,9 @@ func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 			header.CorruptedAt = built.MalformedAt
 		}
 		header.Rows = append(header.Rows, metaRow{
-			Label: "Malformed value",
-			Text:  fmt.Sprintf("action %d: %s", built.MalformedAt, built.Malformed),
+			Label:   "Malformed value",
+			Flagged: true,
+			Text:    fmt.Sprintf("action %d: %s", built.MalformedAt, built.Malformed),
 		})
 	}
 	return header
@@ -370,27 +391,41 @@ func reviewLink(w *shortcuts.Workflow, siteURL string) string {
 }
 
 type indexPage struct {
-	Title      string
-	Stylesheet string
-	Rows       []indexRow
+	Title        string
+	Stylesheet   string
+	Chrome       chrome
+	Count        int
+	Actions      int
+	Flagged      int
+	LastModified string
+	Rows         []indexRow
 }
 
 type indexRow struct {
 	Name         string
 	Href         string
 	ActionCount  int
-	Modified     string
+	MinimumOS    string
+	ModifiedDate string
 	ModifiedSort string
 	Color        template.CSS
 	ColorText    string
+	Flagged      bool
 }
 
 func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 	out := map[string][]byte{StylesheetPath: Stylesheet()}
-	index := indexPage{Title: siteTitle(opts), Stylesheet: prefix(opts.BaseURL, 0) + StylesheetPath}
+	title := siteTitle(opts)
+	index := indexPage{
+		Title:      title,
+		Stylesheet: prefix(opts.BaseURL, 0) + StylesheetPath,
+		Chrome:     chrome{SiteTitle: title, Home: prefix(opts.BaseURL, 0) + IndexPath},
+	}
+	pageChrome := chrome{SiteTitle: title, Home: prefix(opts.BaseURL, 1) + IndexPath}
 
 	slugs := map[string]bool{}
 	rows := make([]indexRow, 0, len(entries))
+	var latest time.Time
 	for _, entry := range entries {
 		if entry.Workflow == nil {
 			return nil, fmt.Errorf("render: site entry has no workflow")
@@ -399,24 +434,37 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 
 		rendered := buildPage(entry.Workflow, opts.ExpandAll)
 		rendered.Stylesheet = prefix(opts.BaseURL, 1) + StylesheetPath
-		rendered.Home = prefix(opts.BaseURL, 1) + IndexPath
+		rendered.Home = pageChrome.Home
+		rendered.Chrome = pageChrome
 		body, err := execute(pages, "review", rendered)
 		if err != nil {
 			return nil, err
 		}
 		out[path.Join(ShortcutsDirname, slug+".html")] = body
 
+		modified := entry.Workflow.Modified
+		if modified.After(latest) {
+			latest = modified
+		}
+		index.Actions += len(entry.Workflow.Actions)
+		if rendered.Header.Corrupted {
+			index.Flagged++
+		}
 		color := archive.HexColor(entry.Workflow.Icon.Color)
 		rows = append(rows, indexRow{
 			Name:         entry.Workflow.Name,
 			Href:         prefix(opts.BaseURL, 0) + path.Join(ShortcutsDirname, slug+".html"),
 			ActionCount:  len(entry.Workflow.Actions),
-			Modified:     formatTime(entry.Workflow.Modified),
-			ModifiedSort: sortableTime(entry.Workflow.Modified),
+			MinimumOS:    rendered.Header.MinimumOS,
+			ModifiedDate: formatDate(modified),
+			ModifiedSort: sortableTime(modified),
 			Color:        template.CSS(color),
 			ColorText:    color,
+			Flagged:      rendered.Header.Corrupted,
 		})
 	}
+	index.Count = len(rows)
+	index.LastModified = formatDate(latest)
 
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := strings.ToLower(rows[i].Name), strings.ToLower(rows[j].Name)

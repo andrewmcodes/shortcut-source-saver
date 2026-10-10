@@ -131,10 +131,9 @@ func (r *reviewer) renderAction(in actionInput) *item {
 	}
 	title = append(title, r.blockLink(in)...)
 
-	label := append([]node{text(strconv.Itoa(in.Index) + " ")}, title...)
 	return &item{
 		Index:   in.Index,
-		Label:   label,
+		Label:   title,
 		Summary: summary,
 		Rows:    rows,
 		Group:   group,
