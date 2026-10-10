@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
 	"fmt"
 	"html/template"
@@ -36,9 +37,10 @@ const (
 )
 
 var (
-	pages    = template.Must(template.ParseFS(files, "templates/*.html.tmpl"))
-	markdown = texttemplate.Must(texttemplate.ParseFS(files, "templates/*.md.tmpl"))
-	styles   = mustReadStyles()
+	pages         = template.Must(template.ParseFS(files, "templates/*.html.tmpl"))
+	markdown      = texttemplate.Must(texttemplate.ParseFS(files, "templates/*.md.tmpl"))
+	styles        = mustReadStyles()
+	stylesheetURL = StylesheetPath + "?v=" + fmt.Sprintf("%x", sha256.Sum256([]byte(styles)))[:12]
 )
 
 func mustReadStyles() string {
@@ -89,6 +91,8 @@ type chrome struct {
 	Home      string
 	MapHref   string
 	OnMap     bool
+	OnIndex   bool
+	OnDetail  bool
 }
 
 type pageHeader struct {
@@ -129,7 +133,7 @@ func WebReviewWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, error) {
 	}
 	rendered := buildPage(w, opts.ExpandAll, nil)
 	rendered.InlineCSS = template.CSS(styles)
-	rendered.Chrome = chrome{SiteTitle: siteTitle(SiteOptions{})}
+	rendered.Chrome = chrome{SiteTitle: siteTitle(SiteOptions{}), OnDetail: true}
 	return execute(pages, "review", rendered)
 }
 
@@ -485,11 +489,11 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 	root := prefix(0)
 	index := indexPage{
 		Title:      title,
-		Stylesheet: root + StylesheetPath,
-		Chrome:     chrome{SiteTitle: title, Home: root + IndexPath, MapHref: root + MapPath},
+		Stylesheet: root + stylesheetURL,
+		Chrome:     chrome{SiteTitle: title, Home: root + IndexPath, MapHref: root + MapPath, OnIndex: true},
 		MapHref:    root + MapPath,
 	}
-	pageChrome := chrome{SiteTitle: title, Home: prefix(1) + IndexPath, MapHref: prefix(1) + MapPath}
+	pageChrome := chrome{SiteTitle: title, Home: prefix(1) + IndexPath, MapHref: prefix(1) + MapPath, OnDetail: true}
 
 	taken := map[string]bool{}
 	slugs := make([]string, len(entries))
@@ -512,7 +516,7 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		if status := rendered.Header.Inactive; status != nil && status.Conflict {
 			status.OriginalHref, _ = graph.original(i, pageHref)
 		}
-		rendered.Stylesheet = prefix(1) + StylesheetPath
+		rendered.Stylesheet = prefix(1) + stylesheetURL
 		rendered.Home = pageChrome.Home
 		rendered.Chrome = pageChrome
 		body, err := execute(pages, "review", rendered)
@@ -578,7 +582,7 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 
 	dependencies := graph.mapPage(rootHref)
 	dependencies.Title = title
-	dependencies.Stylesheet = root + StylesheetPath
+	dependencies.Stylesheet = root + stylesheetURL
 	dependencies.Chrome = index.Chrome
 	dependencies.Chrome.OnMap = true
 	dependencies.Home = index.Chrome.Home

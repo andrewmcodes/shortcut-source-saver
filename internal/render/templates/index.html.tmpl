@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <body>
 {{template "topbar" .Chrome}}
 <main>
-<div class="page-heading"><h1>{{.Title}}</h1>{{with .LastModified}}<span class="badge">Last change {{.}}</span>{{end}}</div>
+<div class="page-heading"><h1>My shortcuts</h1>{{with .LastModified}}<span class="badge">Last change {{.}}</span>{{end}}</div>
 <details class="library-summary">
 <summary><span>{{template "icon-layers"}} Library overview</span><span>{{.Count}} shortcut{{if ne .Count 1}}s{{end}}{{if .Deleted}} · {{.Deleted}} deleted{{end}} · {{.Actions}} action{{if ne .Actions 1}}s{{end}}</span></summary>
 <div class="stats">

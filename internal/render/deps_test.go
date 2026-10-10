@@ -431,7 +431,7 @@ func TestMapListsInactiveShortcutsMarked(t *testing.T) {
 		t.Errorf("no-script ranking = %q, want every connected shortcut %q", got, want)
 	}
 	assertContains(t, "map", page,
-		`2 connected, 0 standalone.`,
+		`<span>2 connected</span><span>0 standalone</span>`,
 		`<a class="inline-link" href="index.html#deleted">2 deleted shortcuts</a>`,
 		`<input type="checkbox" id="show-deleted" autocomplete="off">`,
 	)

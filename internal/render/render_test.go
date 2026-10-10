@@ -2,7 +2,9 @@ package render
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -604,7 +606,7 @@ func TestSite(t *testing.T) {
 
 	page := string(site["shortcuts/linear-shortcut.html"])
 	for _, link := range []string{
-		`href="../assets/style.css"`,
+		`href="../assets/style.css?v=`,
 		`href="../index.html"`,
 	} {
 		if !strings.Contains(page, link) {
@@ -685,7 +687,7 @@ func TestSiteRelativeLinksAndSlugCollisions(t *testing.T) {
 			t.Errorf("missing %s, got %v", name, sortedKeys(site))
 		}
 	}
-	if !strings.Contains(string(site["shortcuts/same-name.html"]), `href="../assets/style.css"`) {
+	if !strings.Contains(string(site["shortcuts/same-name.html"]), `href="../assets/style.css?v=`) {
 		t.Error("relative sites should reach the stylesheet with ../")
 	}
 	if !strings.Contains(string(site[IndexPath]), `href="shortcuts/same-name.html"`) {
@@ -1039,4 +1041,50 @@ func TestContentClassesReadAsWords(t *testing.T) {
 	if got != want {
 		t.Errorf("contentClasses() = %q, want %q", got, want)
 	}
+}
+
+func TestSiteStylesheetVersionMatchesContents(t *testing.T) {
+	site, err := Site([]Entry{{Workflow: workflow("Example", action("is.workflow.actions.nothing", nil))}}, SiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := fmt.Sprintf("%x", sha256.Sum256(site[StylesheetPath]))[:12]
+	for name, body := range site {
+		if !strings.HasSuffix(name, ".html") {
+			continue
+		}
+		prefix := ""
+		if strings.HasPrefix(name, "shortcuts/") {
+			prefix = "../"
+		}
+		want := `href="` + prefix + StylesheetPath + "?v=" + version + `"`
+		if !strings.Contains(string(body), want) {
+			t.Errorf("%s must load its content-versioned stylesheet %s", name, want)
+		}
+	}
+}
+
+func TestLibraryNavigationContext(t *testing.T) {
+	site, err := Site([]Entry{{Workflow: workflow("Example", action("is.workflow.actions.nothing", nil))}}, SiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, "library navigation", string(site[IndexPath]), `class="topbar-link library-link" href="index.html" aria-current="page"`)
+	assertContains(t, "shortcut navigation", string(site["shortcuts/example.html"]), `class="topbar-link library-link" href="../index.html" aria-current="location"`)
+	if strings.Contains(string(site[MapPath]), `class="topbar-link library-link" href="index.html" aria-current=`) {
+		t.Error("dependency map must not mark the library as current")
+	}
+}
+
+func TestAppearanceAndDetailsDrawer(t *testing.T) {
+	site, err := Site([]Entry{{Workflow: workflow("Example", action("is.workflow.actions.nothing", nil))}}, SiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{IndexPath, MapPath, "shortcuts/example.html"} {
+		for _, mode := range []string{"auto", "light", "dark"} {
+			assertContains(t, name, string(site[name]), `data-appearance="`+mode+`"`)
+		}
+	}
+	assertContains(t, "detail drawer", string(site["shortcuts/example.html"]), `id="details-drawer"`, `aria-controls="details-drawer"`, `id="details-close"`, `drawer.showModal()`, `drawer.show()`)
 }

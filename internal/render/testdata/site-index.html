@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Shortcuts</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=5018877a9440">
 <script>
 try {
 	const saved = localStorage.getItem('sss-theme');
@@ -111,38 +111,46 @@ document.addEventListener('DOMContentLoaded', function () {
 	window.addEventListener('pageshow', function () { reorder(); fromHash(); });
 	document.getElementById('toolbar').hidden = false;
 
-	const themeButton = document.getElementById('theme');
-	const themeNames = {auto: 'automatic', dark: 'dark', light: 'light'};
-	const nextTheme = {auto: 'dark', dark: 'light', light: 'auto'};
-	const currentTheme = function () { return document.documentElement.dataset.theme || 'auto'; };
-	const labelTheme = function () {
-		const text = 'Appearance: ' + themeNames[currentTheme()];
-		themeButton.title = text;
-		themeButton.setAttribute('aria-label', text);
-	};
-	themeButton.addEventListener('click', function () {
-		const next = nextTheme[currentTheme()];
-		try {
-			if (next === 'auto') { localStorage.removeItem('sss-theme'); } else { localStorage.setItem('sss-theme', next); }
-		} catch (error) {}
-		if (next === 'auto') { delete document.documentElement.dataset.theme; } else { document.documentElement.dataset.theme = next; }
-		labelTheme();
-	});
-	labelTheme();
+	const appearanceButtons = document.querySelectorAll('[data-appearance]');
+	function labelAppearance() {
+		const current = document.documentElement.dataset.theme || 'auto';
+		for (const button of appearanceButtons) {
+			button.setAttribute('aria-pressed', String(button.dataset.appearance === current));
+		}
+	}
+	for (const button of appearanceButtons) {
+		button.addEventListener('click', function () {
+			const next = button.dataset.appearance;
+			try {
+				if (next === 'auto') { localStorage.removeItem('sss-theme'); } else { localStorage.setItem('sss-theme', next); }
+			} catch (error) {}
+			if (next === 'auto') { delete document.documentElement.dataset.theme; } else { document.documentElement.dataset.theme = next; }
+			labelAppearance();
+		});
+	}
+	labelAppearance();
 });
 </script>
 </head>
 <body>
 
-<header class="topbar">
-<a class="brand" href="index.html"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span>My Shortcuts</span></a>
+<header class="topbar has-navigation">
+<a class="brand" href="index.html" aria-label="My Shortcuts" title="My Shortcuts"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span></a>
 <div class="topbar-actions">
+<nav class="site-navigation" aria-label="Main navigation">
+<a class="topbar-link library-link" href="index.html" aria-current="page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg><span>All shortcuts</span></a>
 <a class="topbar-link" href="dependencies.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg><span>Dependency map</span></a>
-<button type="button" class="icon-button" id="theme" title="Appearance: automatic" aria-label="Appearance: automatic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+</nav>
+<div class="appearance-control" role="group" aria-label="Appearance">
+<button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg></button>
+<button type="button" data-appearance="light" aria-label="Light appearance" title="Light appearance" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+<button type="button" data-appearance="dark" aria-label="Dark appearance" title="Dark appearance" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13A9 9 0 0 1 11 3.5 9 9 0 1 0 20.5 13Z"></path></svg></button>
+</div>
+
 </div>
 </header>
 <main>
-<div class="page-heading"><h1>My Shortcuts</h1><span class="badge">Last change 2025-06-14</span></div>
+<div class="page-heading"><h1>My shortcuts</h1><span class="badge">Last change 2025-06-14</span></div>
 <details class="library-summary">
 <summary><span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg> Library overview</span><span>3 shortcuts · 23 actions</span></summary>
 <div class="stats">

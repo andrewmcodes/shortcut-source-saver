@@ -402,8 +402,8 @@ document.addEventListener('DOMContentLoaded', function () {
 <body>
 {{template "topbar" .Chrome}}
 <main>
-<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{.Home}}">{{template "icon-back"}} All shortcuts</a><span aria-hidden="true">/</span><span>Dependency map</span></nav>
-<div class="page-heading map-heading"><div><span class="eyebrow">Follow the connections</span><h1>Dependency map</h1><p>How the shortcuts in this backup run each other through Run Shortcut actions: {{.Connected}} connected, {{.Standalone}} standalone{{if .Missing}}, {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}{{end}}{{if .Dynamic}}, {{.Dynamic}} chosen at run time{{end}}.{{if .Deleted}} The backup also keeps <a class="inline-link" href="{{.Home}}#deleted">{{.Deleted}} deleted shortcut{{if ne .Deleted 1}}s{{end}}</a>, left out of the map unless you show them.{{end}}</p></div><span class="badge">Workflow-linked</span></div>
+<div class="page-heading map-heading"><h1>Dependency map</h1></div>
+<div class="map-summary"><span>{{.Connected}} connected</span><span>{{.Standalone}} standalone</span>{{if .Missing}}<span>{{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}</span>{{end}}{{if .Dynamic}}<span>{{.Dynamic}} chosen at run time</span>{{end}}{{if .Deleted}}<a class="inline-link" href="{{.Home}}#deleted">{{.Deleted}} deleted shortcut{{if ne .Deleted 1}}s{{end}}</a>{{end}}</div>
 {{- if .Rows}}
 <div class="focus-tools" id="focus-tools" hidden>
 <div class="focus-search">

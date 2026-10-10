@@ -39,8 +39,8 @@
 {{- end}}
 
 {{define "header"}}
-<div class="detail-heading{{if .Inactive}} inactive{{end}}"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><div><span class="eyebrow">Shortcut</span><h1>{{.Name}}</h1></div></div>
-<div class="detail-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .MinimumOS}}<span>iOS {{.}}</span>{{end}}{{with .Modified}}<span>Modified {{.}}</span>{{end}}{{if .Corrupted}}<span class="flagged">Flagged</span>{{end}}{{if .Inactive}}<span><span class="deleted-badge">{{template "icon-trash"}} Deleted</span></span>{{end}}</div>
+<div class="detail-heading{{if .Inactive}} inactive{{end}}"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><div><h1>{{.Name}}</h1>
+<div class="detail-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .MinimumOS}}<span>iOS {{.}}</span>{{end}}{{with .Modified}}<span>Modified {{.}}</span>{{end}}{{if .Corrupted}}<span class="flagged">Flagged</span>{{end}}{{if .Inactive}}<span><span class="deleted-badge">{{template "icon-trash"}} Deleted</span></span>{{end}}</div></div></div>
 {{- with .Inactive}}
 <div class="status-banner" role="note">{{template "icon-trash"}}<p><strong>Deleted.</strong> {{if .Conflict}}This is a sync-conflict copy{{with .OriginalName}} of {{if $.Inactive.OriginalHref}}<a class="text-link" href="{{$.Inactive.OriginalHref}}">{{.}}</a>{{else}}<b>{{.}}</b>{{end}}{{end}}. The Shortcuts app hides conflict copies, so it is not in your library, but the backup keeps it in case it holds work the original lost.{{else}}This shortcut is no longer in your Shortcuts library. The backup keeps its last version so you can still find and reinstall it.{{end}}</p></div>
 {{- end}}
@@ -57,18 +57,9 @@
 
 {{define "details"}}
 <aside class="detail-side" aria-labelledby="details-heading">
-<details class="meta-panel" id="details" open>
-<summary><h2 id="details-heading">Details</h2></summary>
-<dl class="meta-list">
-<div><dt>Colour</dt><dd><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</dd></div>
-{{- range .Rows}}
-{{- if .Nodes}}
-<div><dt>{{.Label}}</dt><dd>{{template "nodes" .Nodes}}</dd></div>
-{{- else if .Text}}
-<div{{if .Flagged}} class="flagged-row"{{end}}><dt>{{.Label}}</dt><dd>{{.Text}}</dd></div>
-{{- end}}
-{{- end}}
-</dl>
+<div class="meta-panel" id="details">
+<div class="drawer-heading"><h2 id="details-heading">Details</h2><button class="icon-button" id="details-close" type="button" aria-label="Close details" title="Close details" hidden>{{template "icon-close"}}</button></div>
+
 {{- with .Deps}}
 <section class="relations" aria-labelledby="runs-heading">
 <h3 id="runs-heading">Runs{{with .Runs}} <span>{{len .}}</span>{{end}}</h3>
@@ -96,6 +87,19 @@
 {{- end}}
 <a class="btn map-button" href="{{.MapHref}}">{{template "icon-graph"}} Open dependency map</a>
 {{- end}}
+<details class="technical-details">
+<summary>Shortcut information</summary>
+<dl class="meta-list">
+<div><dt>Colour</dt><dd><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</dd></div>
+{{- range .Rows}}
+{{- if .Nodes}}
+<div><dt>{{.Label}}</dt><dd>{{template "nodes" .Nodes}}</dd></div>
+{{- else if .Text}}
+<div{{if .Flagged}} class="flagged-row"{{end}}><dt>{{.Label}}</dt><dd>{{.Text}}</dd></div>
+{{- end}}
+{{- end}}
+</dl>
 </details>
+</div>
 </aside>
 {{- end}}

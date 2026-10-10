@@ -1,0 +1,51 @@
+{{define "drawer-script"}}
+	const drawer = document.getElementById('details-drawer');
+	const drawerToggle = document.getElementById('details-toggle');
+	const drawerClose = document.getElementById('details-close');
+	const narrowScreen = window.matchMedia('(max-width: 850px)');
+	function syncDrawer() {
+		document.body.classList.toggle('details-open', drawer.open && !narrowScreen.matches);
+		document.body.classList.toggle('drawer-modal', drawer.open && narrowScreen.matches);
+		drawerToggle.setAttribute('aria-expanded', String(drawer.open));
+		const label = drawer.open ? 'Hide details' : 'Show details';
+		drawerToggle.setAttribute('aria-label', label);
+		drawerToggle.title = label;
+	}
+	function openDrawer() {
+		if (narrowScreen.matches) { drawer.showModal(); } else { drawer.show(); }
+		syncDrawer();
+	}
+	document.body.classList.add('drawer-ready');
+	drawerToggle.hidden = false;
+	drawerClose.hidden = false;
+	if (narrowScreen.matches) { drawer.close(); }
+	syncDrawer();
+	drawerToggle.addEventListener('click', function () {
+		if (drawer.open) { drawer.close(); } else { openDrawer(); }
+		syncDrawer();
+	});
+	drawerClose.addEventListener('click', function () { drawer.close(); drawerToggle.focus(); });
+	drawer.addEventListener('close', syncDrawer);
+	document.addEventListener('keydown', function (event) {
+		if (event.key === 'Escape' && drawer.open && !narrowScreen.matches) {
+			drawer.close();
+			drawerToggle.focus();
+		}
+	});
+	drawer.addEventListener('click', function (event) {
+		if (event.target !== drawer || !narrowScreen.matches) { return; }
+		const rect = drawer.getBoundingClientRect();
+		if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { drawer.close(); }
+	});
+	drawer.addEventListener('click', function (event) {
+		if (narrowScreen.matches && event.target.closest('.magic[data-target]')) { drawer.close(); }
+	}, true);
+	drawer.addEventListener('keydown', function (event) {
+		if (narrowScreen.matches && (event.key === 'Enter' || event.key === ' ') && event.target.closest('.magic[data-target]')) { drawer.close(); }
+	}, true);
+	narrowScreen.addEventListener('change', function () {
+		drawer.close();
+		if (!narrowScreen.matches) { openDrawer(); }
+		syncDrawer();
+	});
+{{end}}
