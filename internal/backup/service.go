@@ -149,7 +149,7 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 		return result
 	}
 
-	if findings := findSecrets(w); len(findings) > 0 && !s.opts.AllowSecrets {
+	if findings := FindSecrets(w); len(findings) > 0 && !s.opts.AllowSecrets {
 		result.Outcome = tui.OutcomeFailed
 		result.Detail = fmt.Sprintf("%d possible credential(s); re-run with --allow-secrets to override", len(findings))
 		result.Err = fmt.Errorf("%w in %q:\n%s", ErrSecretsFound, sc.Name, scan.Summary(findings))
@@ -227,7 +227,7 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 	return result
 }
 
-func findSecrets(w *shortcuts.Workflow) []scan.Finding {
+func FindSecrets(w *shortcuts.Workflow) []scan.Finding {
 	findings := scan.Scan(w.Actions)
 	for _, raw := range w.ImportQuestions {
 		index := -1

@@ -162,9 +162,9 @@ func TestFindSecretsScansImportQuestions(t *testing.T) {
 		}},
 	}
 
-	findings := findSecrets(w)
+	findings := FindSecrets(w)
 	if len(findings) != 1 {
-		t.Fatalf("findSecrets() = %v, want one finding", findings)
+		t.Fatalf("FindSecrets() = %v, want one finding", findings)
 	}
 	if findings[0].ActionIndex != 3 {
 		t.Errorf("ActionIndex = %d, want 3", findings[0].ActionIndex)

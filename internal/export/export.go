@@ -89,7 +89,7 @@ func filesFor(src Source, sc shortcuts.Shortcut, slug string, opts Options) ([]F
 	if err != nil {
 		return nil, err
 	}
-	if findings := scan.Scan(w.Actions); len(findings) > 0 && !opts.AllowSecrets {
+	if findings := backup.FindSecrets(w); len(findings) > 0 && !opts.AllowSecrets {
 		return nil, fmt.Errorf("%w; re-run with --allow-secrets to override:\n%s",
 			backup.ErrSecretsFound, scan.Summary(findings))
 	}

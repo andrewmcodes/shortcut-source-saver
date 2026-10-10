@@ -47,7 +47,7 @@ No config file is read. `--repo`, `--no-commit` and `--push` are accepted, being
 
 ### Why the secret scan still applies
 
-A zip on your own disk is less exposed than a public repository, but a snapshot is exactly the kind of file that gets attached to an email or dropped into a shared folder. Keeping the guard consistent with `backup` means `sss` never writes a credential anywhere without being told to. The cost is one re-run with `--allow-secrets`.
+A zip on your own disk is less exposed than a public repository, but a snapshot is exactly the kind of file that gets attached to an email or dropped into a shared folder. It runs the same scan as `backup`, import questions included, so `sss` never writes a credential anywhere without being told to. The cost is one re-run with `--allow-secrets`.
 
 ## Reading the database
 
