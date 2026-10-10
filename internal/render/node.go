@@ -7,15 +7,17 @@ import (
 )
 
 const (
-	kindText   = "text"
-	kindEscape = "escape"
-	kindBreak  = "break"
-	kindBox    = "box"
-	kindVar    = "var"
-	kindMagic  = "magic"
-	kindFlag   = "flag"
-	kindBold   = "bold"
-	kindItalic = "italic"
+	kindText    = "text"
+	kindEscape  = "escape"
+	kindBreak   = "break"
+	kindBox     = "box"
+	kindVar     = "var"
+	kindMagic   = "magic"
+	kindFlag    = "flag"
+	kindBold    = "bold"
+	kindItalic  = "italic"
+	kindPage    = "page"
+	kindMissing = "missing"
 )
 
 type node struct {
@@ -50,6 +52,10 @@ func bold(s string) node { return wrap(kindBold, text(s)) }
 func italic(s string) node { return wrap(kindItalic, text(s)) }
 
 func lineBreak() node { return node{Kind: kindBreak} }
+
+func pageLink(href string, children ...node) node {
+	return node{Kind: kindPage, Text: href, Children: children}
+}
 
 func magic(target int, children ...node) node {
 	return node{Kind: kindMagic, Target: target, Children: children}

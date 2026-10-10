@@ -80,6 +80,9 @@ func (r *reviewer) renderAction(in actionInput) *item {
 		rows = append(rows, r.applyToggle(act, params, name, subs, consumed)...)
 	}
 	r.applyEntities(act, params, subs)
+	if r.deps != nil && in.Identifier == runShortcutIdentifier {
+		rows = append(rows, r.applyRunTarget(act, params, subs, consumed)...)
+	}
 
 	for _, key := range sortedKeys(params) {
 		if catalog.IsIgnoredParameter(key) || consumed[key] {

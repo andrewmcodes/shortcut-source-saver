@@ -29,6 +29,7 @@ const (
 	dateLayout       = "2006-01-02"
 	StylesheetPath   = "assets/style.css"
 	IndexPath        = "index.html"
+	MapPath          = "dependencies.html"
 	ShortcutsDirname = "shortcuts"
 	ShortcutFilename = "shortcut.shortcut"
 	ReviewFilename   = "review.html"
@@ -87,6 +88,8 @@ type page struct {
 type chrome struct {
 	SiteTitle string
 	Home      string
+	MapHref   string
+	OnMap     bool
 }
 
 type pageHeader struct {
@@ -100,6 +103,7 @@ type pageHeader struct {
 	Rows        []metaRow
 	Corrupted   bool
 	CorruptedAt int
+	Deps        *pageDeps
 }
 
 type metaRow struct {
@@ -117,18 +121,21 @@ func WebReviewWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, error) {
 	if w == nil {
 		return nil, fmt.Errorf("render: no workflow")
 	}
-	rendered := buildPage(w, opts.ExpandAll)
+	rendered := buildPage(w, opts.ExpandAll, nil)
 	rendered.InlineCSS = template.CSS(styles)
 	rendered.Chrome = chrome{SiteTitle: siteTitle(SiteOptions{})}
 	return execute(pages, "review", rendered)
 }
 
-func buildPage(w *shortcuts.Workflow, expandAll bool) *page {
+func buildPage(w *shortcuts.Workflow, expandAll bool, deps *pageDeps) *page {
 	reviewer := newReviewer(w.Actions, expandAll)
+	reviewer.deps = deps
 	built := reviewer.build(w.Actions)
+	header := headerFor(w, built, reviewer)
+	header.Deps = deps
 	return &page{
 		Title:  w.Name,
-		Header: headerFor(w, built, reviewer),
+		Header: header,
 		Items:  built.Items,
 	}
 }
@@ -431,9 +438,13 @@ type indexPage struct {
 	Title        string
 	Stylesheet   string
 	Chrome       chrome
+	MapHref      string
 	Count        int
 	Actions      int
 	Flagged      int
+	Connected    int
+	Standalone   int
+	Missing      int
 	LastModified string
 	Rows         []indexRow
 }
@@ -449,28 +460,41 @@ type indexRow struct {
 	ColorText    string
 	DarkIcon     bool
 	Flagged      bool
+	Calls        int
+	Callers      int
+	Missing      int
 }
 
 func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 	out := map[string][]byte{StylesheetPath: Stylesheet()}
 	title := siteTitle(opts)
+	root := prefix(opts.BaseURL, 0)
 	index := indexPage{
 		Title:      title,
-		Stylesheet: prefix(opts.BaseURL, 0) + StylesheetPath,
-		Chrome:     chrome{SiteTitle: title, Home: prefix(opts.BaseURL, 0) + IndexPath},
+		Stylesheet: root + StylesheetPath,
+		Chrome:     chrome{SiteTitle: title, Home: root + IndexPath, MapHref: root + MapPath},
+		MapHref:    root + MapPath,
 	}
-	pageChrome := chrome{SiteTitle: title, Home: prefix(opts.BaseURL, 1) + IndexPath}
+	pageChrome := chrome{SiteTitle: title, Home: prefix(opts.BaseURL, 1) + IndexPath, MapHref: prefix(opts.BaseURL, 1) + MapPath}
 
-	slugs := map[string]bool{}
-	rows := make([]indexRow, 0, len(entries))
-	var latest time.Time
-	for _, entry := range entries {
+	taken := map[string]bool{}
+	slugs := make([]string, len(entries))
+	for i, entry := range entries {
 		if entry.Workflow == nil {
 			return nil, fmt.Errorf("render: site entry has no workflow")
 		}
-		slug := uniqueSlug(entry, slugs)
+		slugs[i] = uniqueSlug(entry, taken)
+	}
+	graph := newSiteGraph(entries, slugs)
+	pageHref := func(slug string) string { return prefix(opts.BaseURL, 1) + path.Join(ShortcutsDirname, slug+".html") }
+	rootHref := func(slug string) string { return root + path.Join(ShortcutsDirname, slug+".html") }
 
-		rendered := buildPage(entry.Workflow, opts.ExpandAll)
+	rows := make([]indexRow, 0, len(entries))
+	var latest time.Time
+	for i, entry := range entries {
+		slug := slugs[i]
+		deps := graph.pageDeps(i, pageHref, prefix(opts.BaseURL, 1)+MapPath)
+		rendered := buildPage(entry.Workflow, opts.ExpandAll, deps)
 		rendered.Stylesheet = prefix(opts.BaseURL, 1) + StylesheetPath
 		rendered.Home = pageChrome.Home
 		rendered.Chrome = pageChrome
@@ -488,29 +512,36 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		if rendered.Header.Corrupted {
 			index.Flagged++
 		}
-		color := archive.HexColor(entry.Workflow.Icon.Color)
-		rows = append(rows, indexRow{
+		row := indexRow{
 			Name:         entry.Workflow.Name,
-			Href:         prefix(opts.BaseURL, 0) + path.Join(ShortcutsDirname, slug+".html"),
+			Href:         rootHref(slug),
 			ActionCount:  len(entry.Workflow.Actions),
 			MinimumOS:    rendered.Header.MinimumOS,
 			ModifiedDate: formatDate(modified),
 			ModifiedSort: sortableTime(modified),
-			Color:        template.CSS(color),
-			ColorText:    color,
-			DarkIcon:     isDarkColor(color),
+			Color:        rendered.Header.Color,
+			ColorText:    rendered.Header.ColorText,
+			DarkIcon:     rendered.Header.DarkIcon,
 			Flagged:      rendered.Header.Corrupted,
-		})
+			Calls:        graph.outgoing(i),
+			Callers:      len(deps.CalledBy),
+			Missing:      graph.missing(i),
+		}
+		if graph.connected(i) {
+			index.Connected++
+		} else {
+			index.Standalone++
+		}
+		if row.Missing > 0 {
+			index.Missing++
+		}
+		rows = append(rows, row)
 	}
 	index.Count = len(rows)
 	index.LastModified = formatDate(latest)
 
 	sort.SliceStable(rows, func(i, j int) bool {
-		left, right := strings.ToLower(rows[i].Name), strings.ToLower(rows[j].Name)
-		if left != right {
-			return left < right
-		}
-		return rows[i].Href < rows[j].Href
+		return lessName(rows[i].Name, rows[i].Href, rows[j].Name, rows[j].Href)
 	})
 	index.Rows = rows
 
@@ -519,6 +550,18 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		return nil, err
 	}
 	out[IndexPath] = body
+
+	dependencies := graph.mapPage(rootHref)
+	dependencies.Title = title
+	dependencies.Stylesheet = root + StylesheetPath
+	dependencies.Chrome = index.Chrome
+	dependencies.Chrome.OnMap = true
+	dependencies.Home = index.Chrome.Home
+	body, err = execute(pages, "dependencies", dependencies)
+	if err != nil {
+		return nil, err
+	}
+	out[MapPath] = body
 	return out, nil
 }
 

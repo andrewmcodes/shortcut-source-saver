@@ -1,0 +1,141 @@
+{{define "dependencies"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependency map · {{.Title}}</title>
+<link rel="stylesheet" href="{{.Stylesheet}}">
+<script>
+{{- template "theme-boot"}}
+
+document.addEventListener('DOMContentLoaded', function () {
+	const focus = document.getElementById('focus');
+	const status = document.getElementById('map-status');
+	const groups = Array.from(document.getElementsByClassName('map-group'));
+	const rows = Array.from(document.getElementsByClassName('relationship-row'));
+	const words = function (value) { return value ? value.split(' ') : []; };
+
+	function trace(svg, key) {
+		const linked = new Set(key ? [key] : []);
+		svg.classList.toggle('tracing', !!key);
+		for (const edge of svg.querySelectorAll('.edge')) {
+			const active = !!key && (edge.dataset.from === key || edge.dataset.to === key);
+			edge.classList.toggle('traced', active);
+			if (active) { linked.add(edge.dataset.from); linked.add(edge.dataset.to); }
+		}
+		for (const node of svg.querySelectorAll('[data-node]')) {
+			node.classList.toggle('traced', linked.has(node.dataset.node));
+			node.classList.toggle('focused', !!focus.value && node.dataset.node === focus.value);
+		}
+	}
+
+	function resting(svg) {
+		return words(svg.parentElement.dataset.members).includes(focus.value) ? focus.value : '';
+	}
+
+	for (const svg of document.getElementsByClassName('dependency-svg')) {
+		const hover = function (event) {
+			const node = event.target.closest('[data-node]');
+			if (node) { trace(svg, node.dataset.node); }
+		};
+		svg.addEventListener('pointerover', hover);
+		svg.addEventListener('focusin', hover);
+		svg.addEventListener('pointerleave', function () { trace(svg, resting(svg)); });
+		svg.addEventListener('focusout', function () { trace(svg, resting(svg)); });
+	}
+
+	function apply() {
+		const key = focus.value;
+		for (const group of groups) {
+			group.hidden = !!key && !words(group.dataset.members).includes(key);
+			trace(group.querySelector('svg'), group.hidden ? '' : key);
+		}
+		for (const row of rows) {
+			row.hidden = !!key && !words(row.dataset.related).includes(key);
+		}
+		status.textContent = key ? 'Showing the shortcuts connected to ' + focus.selectedOptions[0].textContent : 'Showing all connections';
+	}
+
+	function fromHash() {
+		const key = window.location.hash.startsWith('#map-') ? decodeURIComponent(window.location.hash.slice(5)) : '';
+		if (!Array.from(focus.options).some(function (option) { return option.value === key; })) { return; }
+		focus.value = key;
+		apply();
+		const node = document.getElementById('map-' + key);
+		if (node) { node.scrollIntoView({block: 'center', inline: 'center'}); }
+	}
+
+	focus.addEventListener('change', function () {
+		try {
+			window.history.replaceState(null, '', focus.value ? '#map-' + focus.value : window.location.pathname + window.location.search);
+		} catch (error) {}
+		apply();
+	});
+	window.addEventListener('hashchange', fromHash);
+	document.getElementById('map-controls').hidden = false;
+	fromHash();
+{{template "theme-script"}}
+});
+</script>
+</head>
+<body>
+{{template "topbar" .Chrome}}
+<main>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{.Home}}">{{template "icon-back"}} All shortcuts</a><span aria-hidden="true">/</span><span>Dependency map</span></nav>
+<div class="page-heading map-heading"><div><span class="eyebrow">Follow the connections</span><h1>Dependency map</h1><p>How the shortcuts in this backup run each other through Run Shortcut actions: {{.Connected}} connected, {{.Standalone}} standalone{{if .Missing}}, {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}{{end}}{{if .Dynamic}}, {{.Dynamic}} chosen at run time{{end}}.</p></div><span class="badge">Workflow-linked</span></div>
+{{- if .Groups}}
+<div class="graph-controls" id="map-controls" hidden><label class="graph-filter"><span>Focus on</span><select id="focus"><option value="">All connections</option>{{range .Options}}<option value="{{.Value}}">{{.Name}}</option>{{end}}</select></label></div>
+<p class="sr-only" id="map-status" role="status" aria-live="polite"></p>
+<div class="graph-legend"><span><i class="legend-line"></i>Runs shortcut</span><span><i class="legend-line missing"></i>Missing reference</span><span><i class="legend-line dynamic"></i>Chosen at run time</span><span>Calls flow left to right</span><a class="text-link" href="#relationships-heading">Skip to the relationship list</a></div>
+<svg class="map-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
+<div class="map-groups">
+{{- range .Groups}}
+<section class="map-group" data-members="{{.Members}}">
+<svg class="dependency-svg" width="{{.Width}}" height="{{.Height}}" viewBox="0 0 {{.Width}} {{.Height}}" role="group" aria-label="{{.Label}}">
+{{- range .Columns}}
+<text class="column-label" x="{{.X}}" y="26">{{.Label}}</text>
+{{- end}}
+{{- range .Edges}}
+<path class="edge{{with .Kind}} {{.}}{{end}}" data-from="{{.From}}" data-to="{{.To}}" d="{{.Path}}" marker-end="url(#arrow)"><title>{{.Title}}</title></path>
+{{- end}}
+{{- range .Nodes}}
+{{- if .Href}}
+<a class="graph-node" id="{{.Anchor}}" data-node="{{.Key}}" href="{{.Href}}" aria-label="{{.Label}}"><title>{{.Name}}</title>{{template "map-node" .}}</a>
+{{- else}}
+<g class="graph-node {{.Kind}}-node" data-node="{{.Key}}" role="img" aria-label="{{.Label}}"><title>{{.Name}}</title>{{template "map-node" .}}</g>
+{{- end}}
+{{- end}}
+</svg>
+</section>
+{{- end}}
+</div>
+{{- else}}
+<div class="empty"><h2>No connections yet</h2><p>No shortcut in this backup runs another.</p></div>
+{{- end}}
+{{- with .Rows}}
+<section class="relationship-list" aria-labelledby="relationships-heading">
+<h2 id="relationships-heading">Relationships</h2>
+{{- range .}}
+<div class="relationship-row" data-related="{{.Related}}">
+<a href="{{.Href}}"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><strong>{{.Name}}</strong></a>
+<div>
+{{- range .Runs}}
+{{- if .Href}}<a class="chip" href="{{.Href}}">Runs {{.Name}}</a>
+{{- else if eq .Kind "self"}}<span class="chip">Runs itself</span>
+{{- else if eq .Kind "missing"}}<span class="chip chip-missing">{{template "icon-warning"}} Missing: {{.Name}}</span>
+{{- else}}<span class="chip">Chosen at run time</span>
+{{- end}}
+{{- else}}<span class="chip-muted">No outgoing calls</span>
+{{- end}}
+{{- if .Callers}}<span class="chip-muted">Called by {{.Callers}}</span>{{end}}
+</div>
+</div>
+{{- end}}
+</section>
+{{- end}}
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "map-node"}}<rect x="{{.X}}" y="{{.Y}}" width="{{.W}}" height="{{.H}}" rx="12"></rect><circle class="dot{{if .DarkIcon}} dark-icon{{end}}" cx="{{.DotX}}" cy="{{.DotY}}" r="6"{{with .Color}} fill="{{.}}"{{end}}></circle><text x="{{.TextX}}" y="{{.NameY}}">{{.Short}}</text><text class="node-subtitle" x="{{.TextX}}" y="{{.SubY}}">{{.Subtitle}}</text>{{end}}

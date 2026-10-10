@@ -68,6 +68,7 @@ type reviewer struct {
 	consumers map[int][]int
 	current   int
 	expandAll bool
+	deps      *pageDeps
 }
 
 func newReviewer(actions []any, expandAll bool) *reviewer {

@@ -27,11 +27,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function update() {
 		const query = search.value.trim().toLowerCase();
-		const flaggedOnly = filter.value === 'flagged';
+		const match = filter.selectedOptions[0].dataset.match;
 		let pool = 0;
 		let shown = 0;
 		for (const card of cards) {
-			const inFilter = !flaggedOnly || card.hasAttribute('data-flagged');
+			const inFilter = !match || card.matches(match);
 			const visible = inFilter && name(card).toLowerCase().includes(query);
 			if (inFilter) { pool++; }
 			if (visible) { shown++; }
@@ -80,27 +80,32 @@ document.addEventListener('DOMContentLoaded', function () {
 <div><strong>{{.Count}}</strong><span>Shortcuts</span></div>
 <div><strong>{{.Actions}}</strong><span>Actions</span></div>
 <div><strong>{{.Flagged}}{{if .Flagged}}<span class="warning-dot">{{template "icon-warning"}}</span>{{end}}</strong><span>Flagged</span></div>
+<div><strong>{{.Connected}}</strong><span>Connected</span></div>
 </div>
 </details>
 <div class="library-toolbar" id="toolbar" hidden>
 <label class="search">{{template "icon-search"}}<span class="sr-only">Search shortcuts</span><input id="search" type="search" placeholder="Search shortcuts" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
-<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts ({{.Count}})</option><option value="flagged" data-label="Flagged">Flagged ({{.Flagged}})</option></select>
+<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts ({{.Count}})</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged ({{.Flagged}})</option><option value="connected" data-label="Connected" data-match="[data-connected]">Connected ({{.Connected}})</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected])">Standalone ({{.Standalone}})</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references ({{.Missing}})</option></select>
 <select id="sort" aria-label="Sort shortcuts"><option value="name">Sort by name</option><option value="actions">Most actions</option><option value="modified">Recently modified</option></select>
 <div class="results-summary" role="status" aria-live="polite"><h2 id="results-title">All shortcuts</h2><span class="results-count" id="results-count">{{.Count}} shortcut{{if ne .Count 1}}s{{end}}</span></div>
 </div>
 <div class="cards" id="shortcuts">
 {{- range .Rows}}
-<a class="shortcut-card" href="{{.Href}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}>
+<a class="shortcut-card" href="{{.Href}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}{{if or .Calls .Callers}} data-connected{{end}}{{if .Missing}} data-missing{{end}}>
 <div class="card-top"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}" title="{{.ColorText}}">{{template "icon-layers"}}</span>{{with .MinimumOS}}<span class="category">iOS {{.}}</span>{{end}}</div>
 <h3>{{.Name}}</h3>
-<div class="card-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .ModifiedDate}}<span>Modified {{.}}</span>{{end}}</div>
+<div class="card-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .ModifiedDate}}<span>Modified {{.}}</span>{{end}}<span class="card-links">{{if .Calls}}{{template "icon-link"}} {{.Calls}} call{{if ne .Calls 1}}s{{end}}{{else if .Callers}}{{template "icon-graph"}} {{.Callers}} caller{{if ne .Callers 1}}s{{end}}{{else}}Standalone{{end}}</span></div>
 {{- if .Flagged}}
 <span class="card-warning">{{template "icon-warning"}} Flagged in the review</span>
+{{- end}}
+{{- if .Missing}}
+<span class="card-warning">{{template "icon-warning"}} {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}</span>
 {{- end}}
 </a>
 {{- end}}
 </div>
 <div class="empty" id="empty" hidden><h2>No shortcuts found</h2><p>Try a different search or filter.</p><button type="button" class="btn" id="clear">Clear search and filters</button></div>
+<div class="library-footer"><span>{{template "icon-link"}} Run Shortcut actions are matched by workflow identifier, then by name.</span><a class="text-link" href="{{.MapHref}}">Explore dependency map {{template "icon-graph"}}</a></div>
 </main>
 </body>
 </html>

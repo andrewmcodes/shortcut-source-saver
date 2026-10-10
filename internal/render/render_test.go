@@ -582,6 +582,7 @@ func TestSite(t *testing.T) {
 
 	want := []string{
 		IndexPath,
+		MapPath,
 		StylesheetPath,
 		"shortcuts/linear-shortcut.html",
 		"shortcuts/nested-if.html",
@@ -637,7 +638,7 @@ func TestSiteIndexMarksFlaggedShortcuts(t *testing.T) {
 	if n := strings.Count(index, " data-flagged"); n != 1 {
 		t.Errorf("index has %d flagged cards, want 1", n)
 	}
-	if !strings.Contains(index, `<option value="flagged" data-label="Flagged">Flagged (1)</option>`) {
+	if !strings.Contains(index, `<option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged (1)</option>`) {
 		t.Error("the flagged filter should count the one corrupted shortcut")
 	}
 }
@@ -659,11 +660,11 @@ func TestDarkIconColours(t *testing.T) {
 }
 
 func TestSiteMakesNoExternalRequests(t *testing.T) {
-	site, err := Site([]Entry{{Workflow: fixtureNamed(t, "linear")}}, SiteOptions{})
+	site, err := Site(append(dependencyEntries(), Entry{Workflow: fixtureNamed(t, "linear")}), SiteOptions{})
 	if err != nil {
 		t.Fatalf("Site: %v", err)
 	}
-	external := regexp.MustCompile(`(?i)(src|href)="(https?:)?//|@import|url\(`)
+	external := regexp.MustCompile(`(?i)(src|href)="(https?:)?//|@import|url\([^#]`)
 	for name, body := range site {
 		if match := external.Find(body); match != nil {
 			t.Errorf("%s references an external resource: %s", name, match)

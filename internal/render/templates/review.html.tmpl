@@ -26,17 +26,22 @@ document.addEventListener('DOMContentLoaded', function () {
 	for (const link of document.getElementsByClassName('magic')) {
 		link.addEventListener('click', function (event) {
 			event.stopPropagation();
-			reveal(this.dataset.target);
+			follow(this, event);
 		});
 		link.addEventListener('keydown', function (event) {
 			if (event.key !== 'Enter' && event.key !== ' ') { return; }
 			event.preventDefault();
 			event.stopPropagation();
-			reveal(this.dataset.target);
+			follow(this, event);
 		});
 		link.addEventListener('keyup', function (event) {
 			if (event.key === ' ') { event.preventDefault(); }
 		});
+	}
+
+	function follow(link, event) {
+		if (!link.dataset.href) { reveal(link.dataset.target); return; }
+		if (event.metaKey || event.ctrlKey) { window.open(link.dataset.href); } else { window.location.href = link.dataset.href; }
 	}
 
 	function reveal(index) {
