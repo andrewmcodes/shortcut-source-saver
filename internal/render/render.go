@@ -58,6 +58,8 @@ func Stylesheet() []byte { return []byte(styles) }
 type Options struct {
 	ExpandAll    bool
 	SiteURL      string
+	SiteRoot     string
+	Slug         string
 	ShortcutFile string
 }
 
@@ -367,7 +369,7 @@ func ShortcutREADMEWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, err
 		WorkflowTypes:        strings.Join(archive.WorkflowTypes(w), ", "),
 		ShortcutFile:         shortcutFile(opts.ShortcutFile),
 		ShortcutHref:         (&url.URL{Path: shortcutFile(opts.ShortcutFile)}).String(),
-		ReviewLink:           reviewLink(w, opts.SiteURL),
+		ReviewLink:           reviewLink(w, opts),
 		CorruptedAt:          -1,
 		Malformed:            built.Malformed,
 		MalformedAt:          built.MalformedAt,
@@ -404,11 +406,25 @@ func shortcutFile(name string) string {
 	return name
 }
 
-func reviewLink(w *shortcuts.Workflow, siteURL string) string {
-	if siteURL == "" {
+func reviewLink(w *shortcuts.Workflow, opts Options) string {
+	slug := opts.Slug
+	if slug == "" {
+		slug = archive.Slug(w.Name)
+	}
+	page := path.Join(ShortcutsDirname, slug+".html")
+	switch {
+	case isHostedURL(opts.SiteURL):
+		return strings.TrimSuffix(opts.SiteURL, "/") + "/" + (&url.URL{Path: page}).String()
+	case opts.SiteRoot != "":
+		return (&url.URL{Path: path.Join(opts.SiteRoot, page)}).String()
+	default:
 		return ReviewFilename
 	}
-	return strings.TrimSuffix(siteURL, "/") + "/" + path.Join(ShortcutsDirname, archive.Slug(w.Name)+".html")
+}
+
+func isHostedURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
 type indexPage struct {

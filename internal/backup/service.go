@@ -190,6 +190,8 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 	readme, err := render.ShortcutREADMEWithOptions(w, render.Options{
 		ExpandAll:    s.opts.ExpandAll,
 		SiteURL:      s.cfg.BaseURL,
+		SiteRoot:     relativeSlashPath(dir, s.cfg.SitePath()),
+		Slug:         filepath.Base(dir),
 		ShortcutFile: signedFileName(sc.Name),
 	})
 	if err != nil {
@@ -425,6 +427,14 @@ func writeFileIfChanged(path string, contents []byte) error {
 		return err
 	}
 	return os.Rename(tmpName, path)
+}
+
+func relativeSlashPath(from, to string) string {
+	rel, err := filepath.Rel(from, to)
+	if err != nil {
+		return ""
+	}
+	return filepath.ToSlash(rel)
 }
 
 func signedFileName(name string) string {

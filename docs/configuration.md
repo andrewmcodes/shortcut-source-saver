@@ -14,6 +14,8 @@ The search path is deliberately short. A backup tool has one meaningful scope â€
 
 A missing file is not an error when no `--config` was given: the defaults plus a `repo_path` are all that is required, so the tool stays usable before `sss init` has ever run. A missing file *is* an error when `--config` was given, because the user named a specific file and silently ignoring it would write the backup somewhere they did not ask for. That error wraps `os.ErrNotExist`, so callers can match it with `errors.Is`.
 
+With `--output DIR` no file is needed at all, and a file that does exist only shapes the output (`sign_mode`, `include_signed`, `include_hidden`, `site_title`); its destination and git settings are ignored. See [backup.md](backup.md#backing-up-into-a-plain-directory---output).
+
 `Config.Path` records the file that was actually loaded, or is empty when defaults are in use. The CLI reports it so "why did it use that repo?" is answerable without guessing which of the three locations won.
 
 ## Options
