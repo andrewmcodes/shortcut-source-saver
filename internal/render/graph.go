@@ -10,15 +10,16 @@ import (
 )
 
 const (
-	mapNodeWidth   = 210
-	mapNodeHeight  = 62
-	mapColumnGap   = 96
-	mapRowHeight   = 88
-	mapPadding     = 20
-	mapTop         = 44
-	mapVirtualSlot = 20
-	mapNameLimit   = 24
-	mapSweeps      = 8
+	mapNodeWidth     = 210
+	mapNodeHeight    = 62
+	mapColumnGap     = 96
+	mapRowHeight     = 88
+	mapPadding       = 20
+	mapTop           = 44
+	mapVirtualSlot   = 20
+	mapNameLimit     = 24
+	mapSweeps        = 8
+	mapCentredHeight = 6 * mapRowHeight
 )
 
 const (
@@ -425,7 +426,10 @@ func layoutGroup(all []*mapNode, allEdges []*mapEdge, members []int) mapGroup {
 		tallest = max(tallest, heights[c])
 	}
 	for c, column := range columns {
-		y := mapTop + (tallest-heights[c])/2
+		y := mapTop
+		if tallest <= mapCentredHeight {
+			y += (tallest - heights[c]) / 2
+		}
 		for _, n := range column {
 			node := nodes[n]
 			node.X = mapPadding + c*(mapNodeWidth+mapColumnGap)

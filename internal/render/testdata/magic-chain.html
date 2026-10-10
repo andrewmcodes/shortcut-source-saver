@@ -914,7 +914,8 @@ kbd {
 
 .graph-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 12px 0 16px; font-size: 12px; color: var(--muted); }
 .graph-legend > span { display: inline-flex; align-items: center; gap: 7px; }
-.graph-legend > span:last-child { margin-left: auto; }
+.graph-legend > span:nth-child(4) { margin-left: auto; }
+.graph-legend > .text-link { min-height: 0; font-size: 12px; }
 .legend-line { width: 22px; border-top: 2px solid var(--slate-9); }
 .legend-line.missing { border-top: 2px dashed var(--amber-9); }
 .legend-line.dynamic { border-top: 2px dotted var(--slate-9); }
@@ -1052,7 +1053,7 @@ a.chip:hover { text-decoration: underline; text-underline-offset: 2px; }
 	.graph-filter { width: 100%; justify-content: space-between; }
 	.graph-filter select { flex: 1; min-width: 0; }
 	.graph-legend { gap: 6px 14px; font-size: 11px; }
-	.graph-legend > span:last-child { margin-left: 0; }
+	.graph-legend > span:nth-child(4) { margin-left: 0; }
 	.map-groups { gap: 12px; }
 	.map-group { width: 100%; }
 	.relationship-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }

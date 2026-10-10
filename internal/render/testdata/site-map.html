@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="page-heading map-heading"><div><span class="eyebrow">Follow the connections</span><h1>Dependency map</h1><p>How the shortcuts in this backup run each other through Run Shortcut actions: 3 connected, 0 standalone, 1 missing reference, 1 chosen at run time.</p></div><span class="badge">Workflow-linked</span></div>
 <div class="graph-controls" id="map-controls" hidden><label class="graph-filter"><span>Focus on</span><select id="focus"><option value="">All connections</option><option value="caller">Caller</option><option value="helper">Helper</option><option value="utility">Utility</option></select></label></div>
 <p class="sr-only" id="map-status" role="status" aria-live="polite"></p>
-<div class="graph-legend"><span><i class="legend-line"></i>Runs shortcut</span><span><i class="legend-line missing"></i>Missing reference</span><span><i class="legend-line dynamic"></i>Chosen at run time</span><span>Calls flow left to right</span></div>
+<div class="graph-legend"><span><i class="legend-line"></i>Runs shortcut</span><span><i class="legend-line missing"></i>Missing reference</span><span><i class="legend-line dynamic"></i>Chosen at run time</span><span>Calls flow left to right</span><a class="text-link" href="#relationships-heading">Skip to the relationship list</a></div>
 <svg class="map-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
 <div class="map-groups">
 <section class="map-group" data-members="caller helper utility">
