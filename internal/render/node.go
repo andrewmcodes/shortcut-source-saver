@@ -159,7 +159,7 @@ func writeMarkdownText(b *strings.Builder, nodes []node) {
 		case kindEscape:
 			b.WriteString(markdownBlank(n.Raw))
 		case kindBreak:
-			b.WriteString("\n")
+			b.WriteString("; ")
 		default:
 			writeMarkdownText(b, n.Children)
 		}

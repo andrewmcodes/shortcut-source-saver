@@ -8,6 +8,14 @@ import (
 
 const maxVariableWrappers = 8
 
+var variableKindLabels = map[string]string{
+	"Ask":            "Ask Each Time",
+	"Clipboard":      "Clipboard",
+	"CurrentDate":    "Current Date",
+	"DeviceDetails":  "Device Details",
+	"ExtensionInput": "Shortcut Input",
+}
+
 func unwrapVariable(v any) any {
 	for depth := 0; depth < maxVariableWrappers; depth++ {
 		value, ok := v.(map[string]any)
@@ -55,7 +63,10 @@ func (r *reviewer) variable(v any) []node {
 		r.recordConsumer(producer)
 		return []node{magic(producer, r.tokenBody(strconv.Itoa(producer)+" "+label, value)...)}
 	default:
-		name := strings.ReplaceAll(kind, "ExtensionInput", "Shortcut Input")
+		name := kind
+		if label, ok := variableKindLabels[kind]; ok {
+			name = label
+		}
 		if prompt := stringOr(value, "Prompt"); prompt != "" {
 			name += " “" + prompt + "”"
 		}

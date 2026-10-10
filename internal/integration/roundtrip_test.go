@@ -105,29 +105,66 @@ func TestExtractedActionsMatchTheReferenceExport(t *testing.T) {
 	if !ok {
 		t.Fatal("reference export has no WFWorkflowActions array")
 	}
-	if len(w.Actions) != len(wantActions) {
-		t.Fatalf("extracted %d actions, reference has %d", len(w.Actions), len(wantActions))
+
+	gotList := roundTripThroughJSON(t, w.Actions).([]any)
+	wantList := normalizeNumbers(wantActions).([]any)
+
+	exported, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("reading reference export: %v", err)
+	}
+	editedSinceExport := matches[0].Modified.After(exported.ModTime())
+
+	prefix, suffix := commonEnds(gotList, wantList)
+	if len(gotList) == len(wantList) && prefix == len(gotList) {
+		t.Logf("compared %d actions, 0 mismatches", len(gotList))
+		return
+	}
+	if !editedSinceExport {
+		reportMismatches(t, gotList, wantList)
+		return
 	}
 
-	got := roundTripThroughJSON(t, w.Actions)
-	want := normalizeNumbers(wantActions)
+	edited := max(len(gotList)-suffix, len(wantList)-suffix) - prefix
+	if edited > maxEditedActions {
+		t.Fatalf("%q was edited after the reference export and differs across %d actions from index %d; "+
+			"re-export it to %s to compare again", referenceShortcutName, edited, prefix, path)
+	}
+	t.Logf("%q was edited after the reference export: at index %d, %d exported action(s) became %d; "+
+		"the other %d actions match", referenceShortcutName, prefix,
+		len(wantList)-suffix-prefix, len(gotList)-suffix-prefix, prefix+suffix)
+}
 
-	gotList := got.([]any)
-	wantList := want.([]any)
+const maxEditedActions = 20
+
+func commonEnds(got, want []any) (prefix, suffix int) {
+	limit := min(len(got), len(want))
+	for prefix < limit && reflect.DeepEqual(got[prefix], want[prefix]) {
+		prefix++
+	}
+	for suffix < limit-prefix && reflect.DeepEqual(got[len(got)-1-suffix], want[len(want)-1-suffix]) {
+		suffix++
+	}
+	return prefix, suffix
+}
+
+func reportMismatches(t *testing.T, got, want []any) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("extracted %d actions, reference has %d", len(got), len(want))
+	}
 	mismatches := 0
-	for i := range gotList {
-		if !reflect.DeepEqual(gotList[i], wantList[i]) {
+	for i := range got {
+		if !reflect.DeepEqual(got[i], want[i]) {
 			mismatches++
 			if mismatches <= 3 {
-				t.Errorf("action %d differs from the reference export:\n got: %#v\nwant: %#v",
-					i, gotList[i], wantList[i])
+				t.Errorf("action %d differs from the reference export:\n got: %#v\nwant: %#v", i, got[i], want[i])
 			}
 		}
 	}
 	if mismatches > 3 {
 		t.Errorf("%d actions differ in total", mismatches)
 	}
-	t.Logf("compared %d actions, %d mismatches", len(gotList), mismatches)
 }
 
 func TestBuiltWorkflowMatchesTheReferenceTopLevelKeys(t *testing.T) {

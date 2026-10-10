@@ -40,7 +40,9 @@
 <button class="button gParams" id="mheader"><b>{{.Name}}</b> ({{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}{{with .MinimumOS}}, iOS {{.}}{{end}}){{if .Corrupted}} <span class="magic flagged" data-target="{{.CorruptedAt}}">corrupted</span>{{end}}</button><div class="content">
 <div class="row"><div class="col1">Colour</div><div class="col2"><span class="swatch" style="background-color: {{.Color}}"></span> {{.ColorText}}</div></div>
 {{- range .Rows}}
-{{- if .Text}}
+{{- if .Nodes}}
+<div class="row"><div class="col1">{{.Label}}</div><div class="col2">{{template "nodes" .Nodes}}</div></div>
+{{- else if .Text}}
 <div class="row"><div class="col1">{{.Label}}</div><div class="col2">{{.Text}}</div></div>
 {{- end}}
 {{- end}}

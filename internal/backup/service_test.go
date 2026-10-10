@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/shortcuts"
@@ -115,5 +117,56 @@ func TestParseHexColorRoundTripsTheArchiveFormat(t *testing.T) {
 		if got := parseHexColor(tt.in); got != tt.want {
 			t.Errorf("parseHexColor(%q) = %#08x, want %#08x", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestLoadFromRepoKeepsWidgetHiddenShortcutsHidden(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		types      string
+		wantHidden bool
+	}{
+		{"hidden from widget", `["WFWorkflowTypeShowInSearch"]`, true},
+		{"shown in widget", `["NCWidget", "WFWorkflowTypeShowInSearch"]`, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			source := `{"WFWorkflowActions": [], "WFWorkflowTypes": ` + tt.types + `}`
+			if err := os.WriteFile(filepath.Join(dir, SourceFileName), []byte(source), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			w, err := loadFromRepo(dir)
+			if err != nil {
+				t.Fatalf("loadFromRepo() error = %v", err)
+			}
+			if w.HiddenFromWidget != tt.wantHidden {
+				t.Errorf("HiddenFromWidget = %v, want %v", w.HiddenFromWidget, tt.wantHidden)
+			}
+			if !w.ShowInSearch {
+				t.Error("ShowInSearch = false, want true")
+			}
+		})
+	}
+}
+
+func TestFindSecretsScansImportQuestions(t *testing.T) {
+	w := &shortcuts.Workflow{
+		Actions: []any{},
+		ImportQuestions: []any{map[string]any{
+			"ActionIndex":  uint64(3),
+			"Category":     "Parameter",
+			"ParameterKey": "WFTextActionText",
+			"Text":         "Paste your OpenAI key",
+			"DefaultValue": "sk-proj-AbCdEf0123456789XyZwVuTsRqPoNmLkJi",
+		}},
+	}
+
+	findings := findSecrets(w)
+	if len(findings) != 1 {
+		t.Fatalf("findSecrets() = %v, want one finding", findings)
+	}
+	if findings[0].ActionIndex != 3 {
+		t.Errorf("ActionIndex = %d, want 3", findings[0].ActionIndex)
 	}
 }

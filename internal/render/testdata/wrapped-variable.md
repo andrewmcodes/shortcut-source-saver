@@ -12,6 +12,7 @@ A backup of the **Wrapped Variables** shortcut. `shortcut.json` is the canonical
 | Client version | 3216 |
 | Minimum client version | 3010 |
 | Workflow types | ActionExtension, NCWidget, WFWorkflowTypeShowInSearch |
+| Accepts | Text |
 
 [Import the shortcut](shortcut.shortcut) · [Open the web review](review.html)
 

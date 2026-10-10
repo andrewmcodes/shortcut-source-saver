@@ -38,6 +38,7 @@ type actionInput struct {
 	Mode        int
 	Kind        flowKind
 	Corrupted   bool
+	Malformed   string
 	OpenerIndex int
 	ClosedAt    int
 }
@@ -47,6 +48,7 @@ type outlineEntry struct {
 	Depth     int
 	Summary   string
 	Corrupted bool
+	Malformed bool
 }
 
 type review struct {
@@ -56,6 +58,8 @@ type review struct {
 	CorruptedAt int
 	Unclosed    bool
 	UnclosedAt  int
+	Malformed   string
+	MalformedAt int
 }
 
 type reviewer struct {
@@ -110,7 +114,7 @@ type openBlock struct {
 }
 
 func (r *reviewer) build(actions []any) *review {
-	out := &review{CorruptedAt: -1, UnclosedAt: -1}
+	out := &review{CorruptedAt: -1, UnclosedAt: -1, MalformedAt: -1}
 	var roots []*item
 	siblings := &roots
 	var stack []openBlock
@@ -123,10 +127,15 @@ func (r *reviewer) build(actions []any) *review {
 		byIndex[in.Index] = rendered
 		out.Outline = append(out.Outline, outlineEntry{
 			Index: in.Index, Depth: depth, Summary: rendered.Summary, Corrupted: in.Corrupted,
+			Malformed: in.Malformed != "",
 		})
 		if in.Corrupted && !out.Corrupted {
 			out.Corrupted = true
 			out.CorruptedAt = in.Index
+		}
+		if in.Malformed != "" && out.MalformedAt < 0 {
+			out.Malformed = in.Malformed
+			out.MalformedAt = in.Index
 		}
 		return rendered
 	}
@@ -138,13 +147,19 @@ func (r *reviewer) build(actions []any) *review {
 		control := catalogued && base.ControlFlow
 
 		mode := controlFlowStart
+		malformed := conditionMalformed(identifier, params)
 		if control {
-			mode, _ = intAt(params, controlFlowMode)
+			var reason string
+			mode, reason = controlFlowModeOf(params)
+			if reason != "" {
+				malformed = strings.TrimPrefix(malformed+"; "+reason, "; ")
+				control = mode >= 0
+			}
 		}
 		grouping := stringOr(params, groupingParameter)
 		in := actionInput{
-			Index: index, Identifier: identifier, Params: params, Mode: mode,
-			OpenerIndex: -1, ClosedAt: -1,
+			Index: index, Identifier: identifier, Params: params, Mode: max(mode, controlFlowStart),
+			Malformed: malformed, OpenerIndex: -1, ClosedAt: -1,
 		}
 
 		if !control {
@@ -200,6 +215,35 @@ func (r *reviewer) build(actions []any) *review {
 	finalize(roots, 0, r.expandAll)
 	out.Items = roots
 	return out
+}
+
+func controlFlowModeOf(params map[string]any) (int, string) {
+	raw, present := params[controlFlowMode]
+	if mode, ok := toInt(raw); ok || !present {
+		return mode, ""
+	}
+	s, isString := raw.(string)
+	if !isString {
+		return -1, "WFControlFlowMode is not an integer"
+	}
+	if mode, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
+		return mode, "WFControlFlowMode is the string " + strconv.Quote(s) + ", not an integer"
+	}
+	return -1, "WFControlFlowMode " + strconv.Quote(s) + " is not a number"
+}
+
+func conditionMalformed(identifier string, params map[string]any) string {
+	if identifier != conditionalIdentifier {
+		return ""
+	}
+	raw, present := params["WFCondition"]
+	if _, ok := toInt(raw); ok || !present {
+		return ""
+	}
+	if s, ok := raw.(string); ok {
+		return "WFCondition is the string " + strconv.Quote(s) + ", not an operator code"
+	}
+	return "WFCondition is not an operator code"
 }
 
 func (r *reviewer) linkConsumers(byIndex map[int]*item) {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	texttemplate "text/template"
 	"time"
+	"unicode"
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/archive"
 	"github.com/andrewmcodes/shortcut-source-saver/internal/catalog"
@@ -92,6 +93,7 @@ type pageHeader struct {
 type metaRow struct {
 	Label string
 	Text  string
+	Nodes []node
 }
 
 func WebReview(w *shortcuts.Workflow) ([]byte, error) {
@@ -112,12 +114,12 @@ func buildPage(w *shortcuts.Workflow, expandAll bool) *page {
 	built := reviewer.build(w.Actions)
 	return &page{
 		Title:  w.Name,
-		Header: headerFor(w, built),
+		Header: headerFor(w, built, reviewer),
 		Items:  built.Items,
 	}
 }
 
-func headerFor(w *shortcuts.Workflow, built *review) pageHeader {
+func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 	color := archive.HexColor(w.Icon.Color)
 	header := pageHeader{
 		Name:        w.Name,
@@ -137,6 +139,12 @@ func headerFor(w *shortcuts.Workflow, built *review) pageHeader {
 		{Label: "Minimum client version", Text: w.MinimumClientVersion},
 		{Label: "Workflow types", Text: strings.Join(archive.WorkflowTypes(w), ", ")},
 	}
+	for _, row := range workflowDetails(w) {
+		header.Rows = append(header.Rows, metaRow{Label: row.Label, Text: row.Value})
+	}
+	for _, question := range w.ImportQuestions {
+		header.Rows = append(header.Rows, metaRow{Label: "Import question", Nodes: r.importQuestion(question)})
+	}
 	if built.Corrupted {
 		header.Corrupted = true
 		header.CorruptedAt = built.CorruptedAt
@@ -155,7 +163,92 @@ func headerFor(w *shortcuts.Workflow, built *review) pageHeader {
 			Text:  fmt.Sprintf("the block opened by action %d is never closed", built.UnclosedAt),
 		})
 	}
+	if built.MalformedAt >= 0 {
+		header.Corrupted = true
+		if header.CorruptedAt < 0 {
+			header.CorruptedAt = built.MalformedAt
+		}
+		header.Rows = append(header.Rows, metaRow{
+			Label: "Malformed value",
+			Text:  fmt.Sprintf("action %d: %s", built.MalformedAt, built.Malformed),
+		})
+	}
 	return header
+}
+
+type detailRow struct {
+	Label string
+	Value string
+}
+
+func workflowDetails(w *shortcuts.Workflow) []detailRow {
+	var rows []detailRow
+	if accepts := contentClasses(w.InputContentItemClasses); accepts != "" {
+		rows = append(rows, detailRow{"Accepts", accepts})
+	}
+	if output := contentClasses(w.OutputContentItemClasses); output != "" {
+		rows = append(rows, detailRow{"Output", output})
+	}
+	if w.HasOutputFallback {
+		rows = append(rows, detailRow{"Output fallback", "yes"})
+	}
+	if w.HasShortcutInputVariables {
+		rows = append(rows, detailRow{"Shortcut input variables", "yes"})
+	}
+	return rows
+}
+
+func contentClasses(classes []any) string {
+	names := make([]string, 0, len(classes))
+	for _, raw := range classes {
+		if class, ok := raw.(string); ok && class != "" {
+			names = append(names, splitWords(contentClassName(class)))
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
+func contentClassName(class string) string {
+	if i := strings.LastIndex(class, "_"); i >= 0 && i < len(class)-1 {
+		return strings.TrimSuffix(class[i+1:], "Entity")
+	}
+	return coercionName(class)
+}
+
+func splitWords(s string) string {
+	runes := []rune(s)
+	var b strings.Builder
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) && !(i == 1 && unicode.IsLower(runes[0])) {
+			prev := runes[i-1]
+			nextLower := i+1 < len(runes) && unicode.IsLower(runes[i+1])
+			if unicode.IsLower(prev) || unicode.IsDigit(prev) || (unicode.IsUpper(prev) && nextLower) {
+				b.WriteRune(' ')
+			}
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func (r *reviewer) importQuestion(raw any) []node {
+	question, ok := raw.(map[string]any)
+	if !ok {
+		return r.value(raw)
+	}
+	var out []node
+	if index, ok := intAt(question, "ActionIndex"); ok {
+		out = append(out, magic(index, text("action "+strconv.Itoa(index))), text(" · "))
+	}
+	if key := stringOr(question, "ParameterKey"); key != "" {
+		out = append(out, visibleText(strings.TrimPrefix(key, "WF"))...)
+		out = append(out, text(": "))
+	}
+	out = append(out, visibleText(stringOr(question, "Text"))...)
+	if value, ok := question["DefaultValue"]; ok && value != "" {
+		out = append(out, text(" (default "), boxOf(r.value(value)), text(")"))
+	}
+	return out
 }
 
 func minimumOS(w *shortcuts.Workflow) string {
@@ -193,6 +286,10 @@ type readmeData struct {
 	ReviewLink           string
 	Corrupted            bool
 	CorruptedAt          int
+	Malformed            string
+	MalformedAt          int
+	Details              []detailRow
+	ImportQuestions      []string
 	Outline              []readmeOutline
 }
 
@@ -201,6 +298,7 @@ type readmeOutline struct {
 	Index     int
 	Summary   string
 	Corrupted bool
+	Malformed bool
 }
 
 func ShortcutREADME(w *shortcuts.Workflow) ([]byte, error) {
@@ -229,6 +327,12 @@ func ShortcutREADMEWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, err
 		ShortcutHref:         (&url.URL{Path: shortcutFile(opts.ShortcutFile)}).String(),
 		ReviewLink:           reviewLink(w, opts.SiteURL),
 		CorruptedAt:          -1,
+		Malformed:            built.Malformed,
+		MalformedAt:          built.MalformedAt,
+		Details:              workflowDetails(w),
+	}
+	for _, question := range w.ImportQuestions {
+		data.ImportQuestions = append(data.ImportQuestions, summarize(reviewer.importQuestion(question)))
 	}
 	switch {
 	case built.Corrupted:
@@ -244,6 +348,7 @@ func ShortcutREADMEWithOptions(w *shortcuts.Workflow, opts Options) ([]byte, err
 			Index:     entry.Index,
 			Summary:   entry.Summary,
 			Corrupted: entry.Corrupted,
+			Malformed: entry.Malformed,
 		})
 	}
 

@@ -59,7 +59,7 @@ Only path-hostile characters are replaced (`/`, `\`, `:`, control characters); s
 ## Order of operations
 
 1. **Load** the shortcut's actions.
-2. **Scan** for credentials, *before writing anything*. A hit fails that shortcut with a redacted summary unless `--allow-secrets` is set. Guarding before the write means a run that would leak never touches the repo. See [secret-scanning.md](secret-scanning.md).
+2. **Scan** the actions and the import questions for credentials, *before writing anything*. A hit fails that shortcut with a redacted summary unless `--allow-secrets` is set. Guarding before the write means a run that would leak never touches the repo. See [secret-scanning.md](secret-scanning.md).
 3. **Write** `shortcut.json` first, because its `changed` result drives everything after it.
 4. **Write** `metadata.json` and `README.md`, each only when the contents differ, so an unchanged shortcut produces no filesystem churn.
 5. **Sign** — skipped entirely when the JSON did not change. See [archive.md](archive.md) for why this matters.
@@ -72,7 +72,9 @@ Writes go through a temp file and a rename, so an interrupted run cannot leave a
 
 `BuildSite` reads `shortcuts/*/shortcut.json` and `metadata.json` back off disk and reconstructs enough of a workflow to render, rather than rendering from the live Shortcuts database.
 
-This means `sss build` regenerates every web review without touching the Shortcuts database, so it works on a machine without Full Disk Access, and shortcuts that have since been deleted from the library still appear in the site as long as their backup is committed. The cost is that a few fields not persisted in `metadata.json` are reconstructed approximately; nothing the site renders depends on them.
+This means `sss build` regenerates every web review without touching the Shortcuts database, so it works on a machine without Full Disk Access, and shortcuts that have since been deleted from the library still appear in the site as long as their backup is committed. The cost is that a few fields not persisted in `metadata.json` are reconstructed approximately.
+
+The one the site does render is the workflow-types row, which is read back out of `WFWorkflowTypes` in `shortcut.json`. `NCWidget` is present only when a shortcut is *not* hidden from the widget, so a reloaded workflow starts with `HiddenFromWidget = true` and the presence of `NCWidget` clears it. Starting from Go's zero value instead would put every widget-hidden shortcut back in the widget on the next `sss build`.
 
 ## Outcomes
 

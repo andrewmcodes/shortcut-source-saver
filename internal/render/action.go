@@ -13,6 +13,7 @@ const (
 	conditionalIdentifier = "is.workflow.actions.conditional"
 	menuIdentifier        = "is.workflow.actions.choosefrommenu"
 	commentIdentifier     = "is.workflow.actions.comment"
+	menuItemsParameter    = "WFMenuItems"
 	outputNameParameter   = "CustomOutputName"
 	operationParameter    = "operation"
 )
@@ -102,6 +103,10 @@ func (r *reviewer) renderAction(in actionInput) *item {
 			}
 			continue
 		}
+		if items, ok := value.([]any); ok && in.Identifier == menuIdentifier && key == menuItemsParameter {
+			rows = append(rows, paramRow{Label: "Menu items", Value: r.lines(items)})
+			continue
+		}
 		if slot, ok := act.SlotFor(key); ok {
 			if slot != catalog.SlotToggle {
 				subs[slot] = []node{boxOf(r.value(value))}
@@ -120,6 +125,9 @@ func (r *reviewer) renderAction(in actionInput) *item {
 	summary := summarize(title)
 	if in.Corrupted {
 		title = []node{flagged(append(title, text(" (corrupted block)"))...)}
+	}
+	if in.Malformed != "" {
+		title = []node{flagged(append(title, text(" ("+in.Malformed+")"))...)}
 	}
 	title = append(title, r.blockLink(in)...)
 

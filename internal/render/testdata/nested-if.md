@@ -12,6 +12,7 @@ A backup of the **Nested If** shortcut. `shortcut.json` is the canonical, diffab
 | Client version | 3216 |
 | Minimum client version | 3010 |
 | Workflow types | ActionExtension, NCWidget, WFWorkflowTypeShowInSearch |
+| Accepts | Text |
 
 [Import the shortcut](shortcut.shortcut) · [Open the web review](review.html)
 
@@ -19,7 +20,7 @@ A backup of the **Nested If** shortcut. `shortcut.json` is the canonical, diffab
 
 - `0` If [Answer] is yes
   - `1` Text
-  - `2` If All are true [1 Text] contains the [Answer] has any value
+  - `2` If All are true; [1 Text] contains the; [Answer] has any value
     - `3` Show Content
   - `4` End If
 - `5` Otherwise if [Count] is between 1 and 9

@@ -27,32 +27,34 @@ func openLocalLibrary(t *testing.T) *Library {
 	return lib
 }
 
-func listIgnoringWAL(path string) ([]string, error) {
-	db, err := sql.Open("sqlite", "file:"+path+"?immutable=1")
+const liveShortcutsQuery = `SELECT ZWORKFLOWID FROM ZSHORTCUT
+	WHERE COALESCE(ZTOMBSTONED,0)=0 AND ZNAME IS NOT NULL AND ZACTIONS IS NOT NULL`
+
+func workflowIDs(path, options string) (map[string]bool, error) {
+	db, err := sql.Open("sqlite", "file:"+path+"?"+options)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`SELECT ZNAME FROM ZSHORTCUT
-		WHERE COALESCE(ZTOMBSTONED,0)=0 AND ZNAME IS NOT NULL AND ZACTIONS IS NOT NULL`)
+	rows, err := db.Query(liveShortcutsQuery)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var out []string
+	out := map[string]bool{}
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		out = append(out, name)
+		out[id] = true
 	}
 	return out, rows.Err()
 }
 
-func TestSnapshotDoesNotLoseShortcutsLeftInTheWAL(t *testing.T) {
+func TestSnapshotMatchesAWALAwareReadOfTheLiveDatabase(t *testing.T) {
 	lib := openLocalLibrary(t)
 
 	all, err := lib.List()
@@ -60,19 +62,32 @@ func TestSnapshotDoesNotLoseShortcutsLeftInTheWAL(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 	if len(all) == 0 {
-		t.Fatal("List returned no shortcuts")
+		t.Skip("the local library has no shortcuts")
+	}
+	snapshot := map[string]bool{}
+	for _, s := range all {
+		snapshot[s.WorkflowID] = true
 	}
 
 	path, _ := DefaultPath()
-	stale, err := listIgnoringWAL(path)
+	live, err := workflowIDs(path, "mode=ro")
 	if err != nil {
 		t.Skipf("cannot read the live database directly: %v", err)
 	}
-	if len(all) < len(stale) {
-		t.Errorf("snapshot saw %d shortcuts, a WAL-less read saw %d: the snapshot lost data",
-			len(all), len(stale))
+	for id := range live {
+		if !snapshot[id] {
+			t.Errorf("shortcut %s is in the live database but missing from the snapshot", id)
+		}
 	}
-	t.Logf("snapshot saw %d shortcuts; a WAL-less read saw %d", len(all), len(stale))
+	for id := range snapshot {
+		if !live[id] {
+			t.Errorf("shortcut %s is in the snapshot but not in the live database", id)
+		}
+	}
+
+	if walless, err := workflowIDs(path, "immutable=1"); err == nil {
+		t.Logf("snapshot %d shortcuts, live %d, a WAL-ignoring read %d", len(snapshot), len(live), len(walless))
+	}
 }
 
 func TestListPopulatesEveryField(t *testing.T) {

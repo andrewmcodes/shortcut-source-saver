@@ -39,4 +39,4 @@ mise run extract-catalog  # regenerate the action catalog (needs .ai/shortcut_so
 
 ## Verifying changes
 
-`internal/integration` compares extraction against a real export in `.ai/` (485 actions, expect 0 mismatches). After touching `internal/backup` or `internal/archive`, run a backup twice against a scratch repo and confirm `git status` is clean — that is the observable proof the signing skip still works.
+`internal/integration` compares extraction against a real export in `.ai/` (485 actions, expect 0 mismatches; if the installed shortcut was edited after the export, it allows one small edited block and logs it — re-export to restore the exact comparison). After touching `internal/backup` or `internal/archive`, run a backup twice against a scratch repo and confirm `git status` is clean — that is the observable proof the signing skip still works.

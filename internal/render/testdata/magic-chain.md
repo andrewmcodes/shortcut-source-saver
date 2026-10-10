@@ -12,6 +12,7 @@ A backup of the **Magic Variable Chain** shortcut. `shortcut.json` is the canoni
 | Client version | 3216 |
 | Minimum client version | 3010 |
 | Workflow types | ActionExtension, NCWidget, WFWorkflowTypeShowInSearch |
+| Accepts | Text |
 
 [Import the shortcut](shortcut.shortcut) · [Open the web review](review.html)
 

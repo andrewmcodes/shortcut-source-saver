@@ -483,6 +483,9 @@ func TestSignRunsWhenOutputMissing(t *testing.T) {
 		MinimumClientVersion: "900",
 	})
 	if err := Sign(false, wf, out, "anyone"); err != nil {
+		if strings.Contains(err.Error(), "signed into iCloud") {
+			t.Skip("signing needs an iCloud account")
+		}
 		t.Fatalf("Sign: %v", err)
 	}
 	info, err := os.Stat(out)

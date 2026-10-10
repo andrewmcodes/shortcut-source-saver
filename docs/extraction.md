@@ -30,7 +30,7 @@ file:/…/Shortcuts.sqlite?immutable=1
 
 Copying rather than reading in place also means a concurrently running Shortcuts app cannot checkpoint the WAL out from under us mid-read. `Close` removes the snapshot.
 
-`TestSnapshotDoesNotLoseShortcutsLeftInTheWAL` asserts the snapshot never sees fewer shortcuts than a deliberately-wrong `immutable=1` read, so this cannot regress unnoticed.
+`TestSnapshotMatchesAWALAwareReadOfTheLiveDatabase` asserts the snapshot holds exactly the same shortcuts, by workflow ID, as a read-only (`mode=ro`) connection to the live database, which does honour the WAL. Comparing against the deliberately-wrong `immutable=1` read instead does not work: the WAL holds deletions as well as additions, so a shortcut deleted since the last checkpoint is still visible to the WAL-ignoring read and the correct snapshot legitimately sees *fewer* shortcuts. If `Open` ever stopped carrying the WAL across, the snapshot would match the `immutable=1` read and differ from the live one, and the test fails whenever the WAL holds any change to the shortcut list.
 
 ## Field mapping
 
@@ -56,6 +56,8 @@ Rows are filtered to `ZTOMBSTONED = 0` (deleted-but-not-yet-purged shortcuts) an
 ### Fidelity
 
 Decoding `ZSHORTCUTACTIONS.ZDATA` for a 485-action shortcut produced a structure that compares equal to a real Shortcuts export of the same shortcut. The only difference across the entire 419 KB payload was `WFRepeatCount: 5.0` versus `5` — an artefact of how the reference file was serialised to JSON, not a difference in the data. Extraction is faithful.
+
+`TestExtractedActionsMatchTheReferenceExport` in `internal/integration` keeps checking this against the export in `.ai/`, which is gitignored and never refreshed automatically. The installed copy of the reference shortcut keeps getting edited, so an exact comparison would eventually fail on an edit rather than on a bug. The test therefore requires an exact match only when the installed shortcut has not been modified since the export file was written. When it has, the test trims the actions that match at both ends and allows the difference to be one contiguous block of at most 20 actions, which is what an edit looks like. Every other action must still match exactly, and the log names the edited block. A larger or scattered difference fails with a request to re-export.
 
 ### `ZACTIONCOUNT` is unreliable
 

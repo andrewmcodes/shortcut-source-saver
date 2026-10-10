@@ -1,12 +1,14 @@
 package render
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/catalog"
 )
 
 const (
+	conditionIsNot            = 5
 	conditionHasAnyValue      = 100
 	conditionHasNoValue       = 101
 	conditionIsToday          = 1002
@@ -66,12 +68,20 @@ func (r *reviewer) conditionGroup(group map[string]any) []node {
 }
 
 func (r *reviewer) singleCondition(params map[string]any, consumed map[string]bool) []node {
-	code, _ := intAt(params, "WFCondition")
-	operator, _ := r.cat.Condition(code)
+	code, numeric := intAt(params, "WFCondition")
+	operator := r.operatorName(code)
+	if !numeric {
+		code = -1
+		operator, _ = formatScalar(params["WFCondition"])
+	}
 
 	out := []node{boxOf(r.value(params["WFInput"]))}
 	consumed["WFInput"] = true
-	out = append(out, text(" "), box(text(operator)))
+	if numeric {
+		out = append(out, text(" "), box(text(operator)))
+	} else {
+		out = append(out, text(" "), flagged(box(visibleText(operator)...)))
+	}
 
 	switch code {
 	case conditionHasAnyValue, conditionHasNoValue, conditionIsToday:
@@ -116,6 +126,13 @@ func (r *reviewer) singleCondition(params map[string]any, consumed map[string]bo
 	return append(out, text(" "), boxOf(operands))
 }
 
+func (r *reviewer) operatorName(code int) string {
+	if operator, ok := r.cat.Condition(code); ok && operator != "" {
+		return operator
+	}
+	return "operator " + strconv.Itoa(code)
+}
+
 func (r *reviewer) predicate(v any) []node {
 	value, ok := v.(map[string]any)
 	if !ok {
@@ -152,11 +169,16 @@ func (r *reviewer) filter(filter map[string]any) []node {
 	property := stringOr(filter, "Property")
 	values, _ := filter["Values"].(map[string]any)
 	operatorCode, _ := intAt(filter, "Operator")
-	operator, _ := r.cat.Condition(operatorCode)
+	operator := r.operatorName(operatorCode)
 
 	shape := r.filterShape(property)
-	if shape.Type == "Bool" {
-		if enabled, ok := values["Bool"].(bool); ok && !enabled {
+	if shape.Type == "Bool" && operatorCode != conditionHasAnyValue && operatorCode != conditionHasNoValue {
+		enabled, ok := values["Bool"].(bool)
+		negated := ok && !enabled
+		if operatorCode == conditionIsNot {
+			negated = !negated
+		}
+		if negated {
 			return visibleText(strings.Replace(property, " ", " Not ", 1))
 		}
 		return visibleText(property)
@@ -164,19 +186,19 @@ func (r *reviewer) filter(filter map[string]any) []node {
 
 	out := visibleText(property + " " + operator)
 	switch {
-	case operatorCode == conditionIsToday:
+	case operatorCode == conditionIsToday, operatorCode == conditionHasAnyValue, operatorCode == conditionHasNoValue:
 		return out
 	case operatorCode == conditionIsBetween:
 		out = append(out, text(" "))
-		out = append(out, r.filterOperand(values, "Date")...)
+		out = append(out, r.filterOperand(values, "Date", "")...)
 		out = append(out, text(" and "))
-		return append(out, r.filterOperand(values, "AnotherDate")...)
+		return append(out, r.filterOperand(values, "AnotherDate", "")...)
 	case operatorCode > conditionRelativeBoundary && shape.Type == "Date":
 		shape = catalog.FilterProperty{Type: "Number", Unit: "Unit"}
 	}
 
 	out = append(out, text(" "))
-	out = append(out, r.filterOperand(values, shape.Type)...)
+	out = append(out, r.filterOperand(values, shape.Type, shape.Default)...)
 	if shape.Unit != "" {
 		out = append(out, text(" "+r.filterUnit(shape, values)))
 	}
@@ -196,12 +218,14 @@ func (r *reviewer) filterShape(property string) catalog.FilterProperty {
 	return catalog.FilterProperty{Type: "String"}
 }
 
-func (r *reviewer) filterOperand(values map[string]any, key string) []node {
-	if value, ok := values[key]; ok {
-		return r.value(value)
+func (r *reviewer) filterOperand(values map[string]any, key, fallback string) []node {
+	for _, candidate := range []string{key, "String", "Number"} {
+		if value, ok := values[candidate]; ok {
+			return r.value(value)
+		}
 	}
-	if value, ok := values["Number"]; ok {
-		return r.value(value)
+	if fallback != "" {
+		return textNodes(fallback)
 	}
 	if key == "Date" || key == "AnotherDate" {
 		return textNodes("(now)")
