@@ -15,6 +15,8 @@ shortcuts/
 
 Each `shortcut.json` is produced by the same `archive.BuildWorkflow` → `archive.CanonicalJSON` path a backup uses, so the bytes are identical to what `sss backup` would write for that shortcut; `TestExportedJSONMatchesBackupBytes` pins that. Directory names come from `backup.ResolveSlugs` over the whole library, so colliding names get the same workflow-id suffixes they would get in a repository.
 
+`metadata.json` comes from the same `archive.NewMetadata`, so sync-conflict copies carry `"status": "conflict"` and their `conflict_of` exactly as in a backup. Deleted shortcuts are never in an export, because an export reads only the library; `"status": "deleted"` exists only in a backup destination, which remembers what the library no longer has.
+
 Mirroring the repository layout is deliberate: unzip an export anywhere and `sss build --repo <dir>` renders a site from it, because the site builder reads only `shortcut.json` and `metadata.json`.
 
 Left out on purpose:

@@ -59,6 +59,8 @@ Only the generated site changed:
 chore(site): rebuild web reviews
 ```
 
+`BackupMessage` is what a run uses: it takes the backed-up names plus a `StatusChanges` of shortcuts newly marked deleted, restored, or marked as sync-conflict copies, and appends one titled bullet section per non-empty group after the name list. With no status changes it is exactly `ShortcutBackupMessage`; with only status changes the subject is `chore(shortcuts): update shortcut status`. The example and the meaning of each status are in [backup.md](backup.md#shortcuts-that-are-no-longer-active).
+
 Shortcut names are user-authored and arbitrary — they routinely contain emoji, quotes, and occasionally newlines. The subject line therefore:
 
 - **collapses all whitespace and control characters to single spaces**, so `"Morning\nRoutine"` becomes `back up Morning Routine`. A newline in the subject would otherwise silently turn the rest of the name into the commit body.

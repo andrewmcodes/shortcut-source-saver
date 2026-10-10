@@ -43,8 +43,13 @@ type Service struct {
 	touched map[string]bool
 	names   map[string]bool
 
-	slugs    map[string]string
-	slugsErr error
+	all    []shortcuts.Shortcut
+	allErr error
+
+	repo    map[string]archive.Metadata
+	repoErr error
+
+	slugs map[string]string
 }
 
 func New(cfg *config.Config, lib *shortcuts.Library, opts Options) *Service {
@@ -107,17 +112,31 @@ func shortID(workflowID string) string {
 	return cleaned
 }
 
-func (s *Service) slugFor(sc shortcuts.Shortcut) (string, error) {
-	if s.slugs == nil && s.slugsErr == nil {
-		all, err := s.lib.List()
-		if err != nil {
-			s.slugsErr = err
-		} else {
-			s.slugs = ResolveSlugs(all)
-		}
+func (s *Service) library() ([]shortcuts.Shortcut, error) {
+	if s.all == nil && s.allErr == nil {
+		s.all, s.allErr = s.lib.List()
 	}
-	if s.slugsErr != nil {
-		return "", s.slugsErr
+	return s.all, s.allErr
+}
+
+func (s *Service) repoSnapshot() (map[string]archive.Metadata, error) {
+	if s.repo == nil && s.repoErr == nil {
+		s.repo, s.repoErr = readRepoMetadata(s.cfg.RepoPath)
+	}
+	return s.repo, s.repoErr
+}
+
+func (s *Service) slugFor(sc shortcuts.Shortcut) (string, error) {
+	if s.slugs == nil {
+		repo, err := s.repoSnapshot()
+		if err != nil {
+			return "", err
+		}
+		all, err := s.library()
+		if err != nil {
+			return "", err
+		}
+		s.slugs = ResolveSlugsAgainst(all, directoryOwners(repo))
 	}
 	if slug, ok := s.slugs[sc.WorkflowID]; ok {
 		return slug, nil
@@ -345,13 +364,8 @@ func loadFromRepo(dir string) (*shortcuts.Workflow, error) {
 		return nil, err
 	}
 
-	var meta archive.Metadata
-	metaRaw, err := os.ReadFile(filepath.Join(dir, MetadataFileName))
-	if err == nil {
-		if err := json.Unmarshal(metaRaw, &meta); err != nil {
-			return nil, err
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
+	meta, _, err := readMetadata(dir)
+	if err != nil {
 		return nil, err
 	}
 
@@ -361,6 +375,8 @@ func loadFromRepo(dir string) (*shortcuts.Workflow, error) {
 		w.Name = filepath.Base(dir)
 	}
 	w.WorkflowID = meta.WorkflowID
+	w.Status = meta.ShortcutStatus()
+	w.ConflictOf = meta.Original()
 	w.Icon = shortcuts.Icon{Glyph: meta.Glyph, Color: parseHexColor(meta.Color)}
 	w.Created = parseTime(meta.Created)
 	w.Modified = parseTime(meta.Modified)
