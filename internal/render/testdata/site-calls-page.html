@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="format-detection" content="telephone=no,date=no">
 <title>Caller</title>
-<link rel="stylesheet" href="../assets/style.css?v=99b9562a673d">
+<link rel="stylesheet" href="../assets/style.css?v=64ed7a4a9927">
 <script>
 try {
 	const saved = localStorage.getItem('sss-theme');
@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	const drawer = document.getElementById('details-drawer');
 	const drawerToggle = document.getElementById('details-toggle');
 	const drawerClose = document.getElementById('details-close');
+	let drawerActionTarget = null;
 	const narrowScreen = window.matchMedia('(max-width: 850px)');
 	function syncDrawer() {
 		document.body.classList.toggle('details-open', drawer.open && !narrowScreen.matches);
@@ -40,7 +41,13 @@ document.addEventListener('DOMContentLoaded', function () {
 		syncDrawer();
 	});
 	drawerClose.addEventListener('click', function () { drawer.close(); drawerToggle.focus(); });
-	drawer.addEventListener('close', syncDrawer);
+	drawer.addEventListener('close', function () {
+		syncDrawer();
+		if (drawerActionTarget) {
+			drawerActionTarget.focus({preventScroll: true});
+			drawerActionTarget = null;
+		}
+	});
 	document.addEventListener('keydown', function (event) {
 		if (event.key === 'Escape' && drawer.open && !narrowScreen.matches) {
 			drawer.close();
@@ -53,10 +60,18 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { drawer.close(); }
 	});
 	drawer.addEventListener('click', function (event) {
-		if (narrowScreen.matches && event.target.closest('.magic[data-target]')) { drawer.close(); }
+		const reference = event.target.closest('.magic[data-target]');
+		if (narrowScreen.matches && reference) {
+			drawerActionTarget = document.getElementById('m' + reference.dataset.target);
+			drawer.close();
+		}
 	}, true);
 	drawer.addEventListener('keydown', function (event) {
-		if (narrowScreen.matches && (event.key === 'Enter' || event.key === ' ') && event.target.closest('.magic[data-target]')) { drawer.close(); }
+		const reference = event.target.closest('.magic[data-target]');
+		if (narrowScreen.matches && (event.key === 'Enter' || event.key === ' ') && reference) {
+			drawerActionTarget = document.getElementById('m' + reference.dataset.target);
+			drawer.close();
+		}
 	}, true);
 	narrowScreen.addEventListener('change', function () {
 		drawer.close();

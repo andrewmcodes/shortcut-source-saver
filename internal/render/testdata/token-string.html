@@ -354,6 +354,7 @@
 	--warning: var(--amber-11);
 	--warning-bg: var(--amber-3);
 	--danger: var(--ruby-11);
+	--control-radius: 9px;
 	--header-height: 52px;
 	--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", sans-serif;
@@ -1288,6 +1289,26 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	.library-toolbar { grid-template-columns: minmax(0, 1fr); }
 }
 
+:is(button, input, select, summary, .btn, .topbar-link, .search, .appearance-control, .library-summary, .focus-option):not(.actions *) {
+	border-radius: var(--control-radius);
+}
+.topbar-link::before { border-radius: var(--control-radius); }
+input[type="checkbox"]:not(.actions *) {
+	-webkit-appearance: none;
+	appearance: none;
+	display: inline-grid;
+	place-content: center;
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	border: 1px solid var(--muted);
+	background: var(--surface);
+	cursor: pointer;
+}
+input[type="checkbox"]:not(.actions *):checked { background: var(--solid); border-color: var(--solid); }
+input[type="checkbox"]:not(.actions *)::before { content: ""; width: 8px; height: 4px; border-left: 2px solid white; border-bottom: 2px solid white; transform: translateY(-1px) rotate(-45deg); visibility: hidden; }
+input[type="checkbox"]:not(.actions *):checked::before { visibility: visible; }
+
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 	.shortcut-card:hover { transform: none; }
@@ -1548,6 +1569,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	const drawer = document.getElementById('details-drawer');
 	const drawerToggle = document.getElementById('details-toggle');
 	const drawerClose = document.getElementById('details-close');
+	let drawerActionTarget = null;
 	const narrowScreen = window.matchMedia('(max-width: 850px)');
 	function syncDrawer() {
 		document.body.classList.toggle('details-open', drawer.open && !narrowScreen.matches);
@@ -1571,7 +1593,13 @@ document.addEventListener('DOMContentLoaded', function () {
 		syncDrawer();
 	});
 	drawerClose.addEventListener('click', function () { drawer.close(); drawerToggle.focus(); });
-	drawer.addEventListener('close', syncDrawer);
+	drawer.addEventListener('close', function () {
+		syncDrawer();
+		if (drawerActionTarget) {
+			drawerActionTarget.focus({preventScroll: true});
+			drawerActionTarget = null;
+		}
+	});
 	document.addEventListener('keydown', function (event) {
 		if (event.key === 'Escape' && drawer.open && !narrowScreen.matches) {
 			drawer.close();
@@ -1584,10 +1612,18 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { drawer.close(); }
 	});
 	drawer.addEventListener('click', function (event) {
-		if (narrowScreen.matches && event.target.closest('.magic[data-target]')) { drawer.close(); }
+		const reference = event.target.closest('.magic[data-target]');
+		if (narrowScreen.matches && reference) {
+			drawerActionTarget = document.getElementById('m' + reference.dataset.target);
+			drawer.close();
+		}
 	}, true);
 	drawer.addEventListener('keydown', function (event) {
-		if (narrowScreen.matches && (event.key === 'Enter' || event.key === ' ') && event.target.closest('.magic[data-target]')) { drawer.close(); }
+		const reference = event.target.closest('.magic[data-target]');
+		if (narrowScreen.matches && (event.key === 'Enter' || event.key === ' ') && reference) {
+			drawerActionTarget = document.getElementById('m' + reference.dataset.target);
+			drawer.close();
+		}
 	}, true);
 	narrowScreen.addEventListener('change', function () {
 		drawer.close();
