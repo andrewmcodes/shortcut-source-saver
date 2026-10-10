@@ -64,7 +64,7 @@ Only path-hostile characters are replaced (`/`, `\`, `:`, control characters); s
 4. **Write** `metadata.json` and `README.md`, each only when the contents differ, so an unchanged shortcut produces no filesystem churn.
 5. **Sign** — skipped entirely when the JSON did not change. See [archive.md](archive.md) for why this matters.
 6. **Regenerate the site** from the repository.
-7. **Stage and commit** the touched paths, unless `--no-commit` or `auto_commit = false`.
+7. **Stage and commit** the touched paths, unless `--no-commit`, `auto_commit = false`, or `--output` (which never commits; see below).
 
 Writes go through a temp file and a rename, so an interrupted run cannot leave a half-written `shortcut.json` in the repo.
 
@@ -75,6 +75,45 @@ Writes go through a temp file and a rename, so an interrupted run cannot leave a
 This means `sss build` regenerates every web review without touching the Shortcuts database, so it works on a machine without Full Disk Access, and shortcuts that have since been deleted from the library still appear in the site as long as their backup is committed. The cost is that a few fields not persisted in `metadata.json` are reconstructed approximately.
 
 The one the site does render is the workflow-types row, which is read back out of `WFWorkflowTypes` in `shortcut.json`. `NCWidget` is present only when a shortcut is *not* hidden from the widget, so a reloaded workflow starts with `HiddenFromWidget = true` and the presence of `NCWidget` clears it. Starting from Go's zero value instead would put every widget-hidden shortcut back in the widget on the next `sss build`.
+
+## Backing up into a plain directory (`--output`)
+
+`sss -o DIR` and `sss backup -o DIR` write a backup into any directory, with no config file, no git repository, and no commit. It exists for "I just want the files here" — a one-off copy, a folder to zip and send, a backup on a machine where nothing has been set up.
+
+```sh
+sss backup --all -o .
+sss backup "Daily Note" "Encode URL" --output ./a/folder
+sss -o ~/Desktop/shortcuts
+```
+
+### Why `-o/--output` and not a positional argument or `--inline`
+
+- `-o/--output` is the name nearly every CLI uses for "where results go" (`go build -o`, `curl -o`, `gcc -o`, `pandoc -o`), so it needs no explaining. [clig.dev](https://clig.dev/#arguments-and-flags) recommends standard flag names over invented ones, and a flag over a second positional because positionals are hard to tell apart.
+- `backup` already uses its positional arguments for shortcut names. A destination positional would make `sss backup Foo bar` ambiguous: is `bar` a shortcut or a folder?
+- It is a local flag on the root command (the picker) and on `backup` only. A persistent flag would also appear on `list`, `build`, and `init`, where it means nothing, and `list -o` would read as "write the list to a file".
+
+### What changes in this mode
+
+| | backup repository (default, `--repo`) | `--output DIR` |
+| --- | --- | --- |
+| config file | optional, but `repo_path` must come from somewhere | optional; never needed |
+| destination | `repo_path` (must be absolute) | `DIR`, resolved against the working directory; `~` is expanded even in `--output=~/x` |
+| git repository | required to commit | never needed |
+| directory missing | created on first write; quitting the picker leaves nothing behind | same |
+| commit / push | per `auto_commit`, `auto_push`, `--no-commit`, `--push` | never, even when `DIR` is inside a git repository |
+| site | `site_dir`, linked under `base_url` | `DIR/<site_dir>` with relative links |
+
+**It never touches git, even when `DIR` happens to be inside a repository.** Running `sss backup --all -o ./shortcuts` from a project's root would otherwise commit a backup into that unrelated project. Committing is what `--repo` and `repo_path` are for: they name a repository you chose for backups, `--output` names a folder. Because git is never invoked, this mode also works without git installed.
+
+**`--output` conflicts with `--push` and `--repo`, enforced with cobra's `MarkFlagsMutuallyExclusive`.** With no commit there is nothing to push, and silently ignoring `--push` would let someone believe a backup was published when it was not. `--repo` names a different destination, so the two together have no sensible meaning. Both conflicts are rejected before the Shortcuts database is opened. `--no-commit` is allowed and redundant.
+
+**A config file is read if one exists, but only for how files look, never for where they go or what happens after.** `sign_mode`, `include_signed`, `include_hidden`, and `site_title` still apply, so a backup into a folder is signed for the same audience as your repository backup. `repo_path`, `auto_commit`, and `auto_push` are ignored. An absolute `site_dir` is replaced by the default `docs`, because it would otherwise write the site into whatever real repository it points at; everything this mode writes stays inside `DIR`. `base_url` is ignored and the site uses relative links, because a folder is not served from a known URL prefix and root-absolute links (`/assets/style.css`) break when `docs/index.html` is opened from disk.
+
+**The site is still built.** The layout is identical to a backup repository — `shortcuts/` plus `docs/` — so `DIR` can later be turned into one with `git init` and used with `--repo` without reshuffling anything, and the web reviews are browsable straight from the folder. `BuildSite` already reads from the destination directory rather than the library, so the index covers every shortcut previously backed up into `DIR`, not only this run's.
+
+**Re-running into the same directory is idempotent.** Nothing here bypasses the write-if-changed and signing-skip rules above; slugs still come from the whole library, never from what is already in `DIR`. A second run with no edits reports every shortcut `unchanged` and leaves every file's bytes and modification time untouched, including the `.shortcut` files.
+
+**It writes where you point it.** `-o .` in a directory that already has a `docs/index.html` will replace it, the same way `cp -r` would. The tool does not try to guess whether a folder "looks like" a backup.
 
 ## Outcomes
 

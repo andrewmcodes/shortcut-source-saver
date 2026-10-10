@@ -39,6 +39,14 @@ sss init                 # write a config file and set up the backup repo
 sss                      # pick shortcuts in the TUI and back them up
 ```
 
+Just want the files? Skip the setup and write straight into a folder — no config, no git:
+
+```sh
+sss backup --all -o .                         # into the current directory
+sss backup "Daily Note" -o ~/Desktop/shortcuts
+sss -o ./exports                              # pick in the TUI, write to ./exports
+```
+
 ## Usage
 
 | Command | What it does |
@@ -47,6 +55,7 @@ sss                      # pick shortcuts in the TUI and back them up
 | `sss list` | Print every shortcut in your library |
 | `sss backup <name>...` | Back up shortcuts by name, no TUI |
 | `sss backup --all` | Back up the entire library |
+| `sss backup --all -o <dir>` | Back up into any directory, with no config or git repo |
 | `sss build` | Regenerate the web reviews and site index |
 | `sss init` | Write an example config and scaffold the backup repo |
 
@@ -56,6 +65,7 @@ Useful flags:
 | --- | --- |
 | `--config <path>` | Use a specific config file |
 | `--repo <path>` | Override `repo_path` for this run |
+| `-o, --output <dir>` | Write into `<dir>` instead of the backup repo; never commits. On `sss` and `sss backup`; cannot be combined with `--repo` or `--push` |
 | `--no-commit` | Write files but do not commit |
 | `--push` | Push after committing |
 | `--include-hidden` | Include shortcuts hidden from your library |
