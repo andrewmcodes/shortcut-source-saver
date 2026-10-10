@@ -61,6 +61,10 @@ func newBackupCommand(flags *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "backup [name...]",
 		Short: "Back up shortcuts by name, without the picker",
+		Example: "  sss backup \"Daily Note\" \"Encode URL\"\n" +
+			"  sss backup --all --push\n" +
+			"  sss backup --all -o .\n" +
+			"  sss backup \"Daily Note\" --output ./exports/shortcuts",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !all && len(args) == 0 {
 				return fmt.Errorf("name at least one shortcut, or pass --all")

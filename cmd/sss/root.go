@@ -7,6 +7,7 @@ import (
 type globalFlags struct {
 	configPath    string
 	repoPath      string
+	outputDir     string
 	allowSecrets  bool
 	includeHidden bool
 	expandAll     bool
@@ -24,7 +25,8 @@ func newRootCommand() *cobra.Command {
 		Long: "sss reads your Apple Shortcuts library and writes each shortcut into a git repository " +
 			"as diffable JSON, an importable .shortcut file, and generated documentation, then rebuilds " +
 			"a browsable web review of every shortcut.\n\n" +
-			"Running sss with no arguments opens a picker.",
+			"Running sss with no arguments opens a picker. Pass -o DIR to write a backup into any " +
+			"directory instead, with no config file, git repository, or commit.",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -43,11 +45,28 @@ func newRootCommand() *cobra.Command {
 	pf.BoolVar(&flags.noCommit, "no-commit", false, "write files but do not commit")
 	pf.BoolVar(&flags.push, "push", false, "push after committing")
 
+	addOutputFlag(root, flags)
+
+	backup := newBackupCommand(flags)
 	root.AddCommand(
 		newListCommand(flags),
-		newBackupCommand(flags),
+		backup,
 		newBuildCommand(flags),
 		newInitCommand(flags),
 	)
+	addOutputFlag(backup, flags)
+	markOutputExclusive(root)
+	markOutputExclusive(backup)
 	return root
+}
+
+func addOutputFlag(cmd *cobra.Command, flags *globalFlags) {
+	cmd.Flags().StringVarP(&flags.outputDir, "output", "o", "",
+		"write into this directory instead of the backup repository (no config or git needed; never commits)")
+	_ = cmd.MarkFlagDirname("output")
+}
+
+func markOutputExclusive(cmd *cobra.Command) {
+	cmd.MarkFlagsMutuallyExclusive("output", "repo")
+	cmd.MarkFlagsMutuallyExclusive("output", "push")
 }
