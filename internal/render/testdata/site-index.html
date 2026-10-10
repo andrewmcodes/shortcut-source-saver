@@ -30,11 +30,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function update() {
 		const query = search.value.trim().toLowerCase();
-		const flaggedOnly = filter.value === 'flagged';
+		const match = filter.selectedOptions[0].dataset.match;
 		let pool = 0;
 		let shown = 0;
 		for (const card of cards) {
-			const inFilter = !flaggedOnly || card.hasAttribute('data-flagged');
+			const inFilter = !match || card.matches(match);
 			const visible = inFilter && name(card).toLowerCase().includes(query);
 			if (inFilter) { pool++; }
 			if (visible) { shown++; }
@@ -95,7 +95,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <header class="topbar">
 <a class="brand" href="/shortcut-source-saver/index.html"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span>My Shortcuts</span></a>
+<div class="topbar-actions">
+<a class="topbar-link" href="/shortcut-source-saver/dependencies.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg><span>Dependency map</span></a>
 <button type="button" class="icon-button" id="theme" title="Appearance: automatic" aria-label="Appearance: automatic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+</div>
 </header>
 <main>
 <div class="page-heading"><h1>My Shortcuts</h1><span class="badge">Last change 2025-06-14</span></div>
@@ -105,11 +108,12 @@ document.addEventListener('DOMContentLoaded', function () {
 <div><strong>3</strong><span>Shortcuts</span></div>
 <div><strong>23</strong><span>Actions</span></div>
 <div><strong>0</strong><span>Flagged</span></div>
+<div><strong>0</strong><span>Connected</span></div>
 </div>
 </details>
 <div class="library-toolbar" id="toolbar" hidden>
 <label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5"></path></svg><span class="sr-only">Search shortcuts</span><input id="search" type="search" placeholder="Search shortcuts" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
-<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts (3)</option><option value="flagged" data-label="Flagged">Flagged (0)</option></select>
+<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts (3)</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged (0)</option><option value="connected" data-label="Connected" data-match="[data-connected]">Connected (0)</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected])">Standalone (3)</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references (0)</option></select>
 <select id="sort" aria-label="Sort shortcuts"><option value="name">Sort by name</option><option value="actions">Most actions</option><option value="modified">Recently modified</option></select>
 <div class="results-summary" role="status" aria-live="polite"><h2 id="results-title">All shortcuts</h2><span class="results-count" id="results-count">3 shortcuts</span></div>
 </div>
@@ -117,20 +121,21 @@ document.addEventListener('DOMContentLoaded', function () {
 <a class="shortcut-card" href="/shortcut-source-saver/shortcuts/linear-shortcut.html" data-actions="5" data-modified="2025-06-14T17:05:00Z">
 <div class="card-top"><span class="shortcut-icon" style="--icon: #4F9BFF" title="#4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="category">iOS 18</span></div>
 <h3>Linear Shortcut</h3>
-<div class="card-meta"><span>5 actions</span><span>Modified 2025-06-14</span></div>
+<div class="card-meta"><span>5 actions</span><span>Modified 2025-06-14</span><span class="card-links">Standalone</span></div>
 </a>
 <a class="shortcut-card" href="/shortcut-source-saver/shortcuts/nested-if.html" data-actions="8" data-modified="2025-06-14T17:05:00Z">
 <div class="card-top"><span class="shortcut-icon" style="--icon: #4F9BFF" title="#4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="category">iOS 18</span></div>
 <h3>Nested If</h3>
-<div class="card-meta"><span>8 actions</span><span>Modified 2025-06-14</span></div>
+<div class="card-meta"><span>8 actions</span><span>Modified 2025-06-14</span><span class="card-links">Standalone</span></div>
 </a>
 <a class="shortcut-card" href="/shortcut-source-saver/shortcuts/repeat-with-menu.html" data-actions="10" data-modified="2025-06-14T17:05:00Z">
 <div class="card-top"><span class="shortcut-icon" style="--icon: #4F9BFF" title="#4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="category">iOS 18</span></div>
 <h3>Repeat With Menu</h3>
-<div class="card-meta"><span>10 actions</span><span>Modified 2025-06-14</span></div>
+<div class="card-meta"><span>10 actions</span><span>Modified 2025-06-14</span><span class="card-links">Standalone</span></div>
 </a>
 </div>
 <div class="empty" id="empty" hidden><h2>No shortcuts found</h2><p>Try a different search or filter.</p><button type="button" class="btn" id="clear">Clear search and filters</button></div>
+<div class="library-footer"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 15 6-6m-5-3 2-2a5 5 0 0 1 7 7l-2 2M7 11l-2 2a5 5 0 0 0 7 7l2-2"></path></svg> Run Shortcut actions are matched by workflow identifier, then by name.</span><a class="text-link" href="/shortcut-source-saver/dependencies.html">Explore dependency map <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg></a></div>
 </main>
 </body>
 </html>

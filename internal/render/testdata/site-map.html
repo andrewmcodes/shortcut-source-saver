@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependency map · Shortcuts</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>
+try {
+	const saved = localStorage.getItem('sss-theme');
+	if (saved === 'dark' || saved === 'light') { document.documentElement.dataset.theme = saved; }
+} catch (error) {}
+
+document.addEventListener('DOMContentLoaded', function () {
+	const focus = document.getElementById('focus');
+	const status = document.getElementById('map-status');
+	const groups = Array.from(document.getElementsByClassName('map-group'));
+	const rows = Array.from(document.getElementsByClassName('relationship-row'));
+	const words = function (value) { return value ? value.split(' ') : []; };
+
+	function trace(svg, key) {
+		const linked = new Set(key ? [key] : []);
+		svg.classList.toggle('tracing', !!key);
+		for (const edge of svg.querySelectorAll('.edge')) {
+			const active = !!key && (edge.dataset.from === key || edge.dataset.to === key);
+			edge.classList.toggle('traced', active);
+			if (active) { linked.add(edge.dataset.from); linked.add(edge.dataset.to); }
+		}
+		for (const node of svg.querySelectorAll('[data-node]')) {
+			node.classList.toggle('traced', linked.has(node.dataset.node));
+			node.classList.toggle('focused', !!focus.value && node.dataset.node === focus.value);
+		}
+	}
+
+	function resting(svg) {
+		return words(svg.parentElement.dataset.members).includes(focus.value) ? focus.value : '';
+	}
+
+	for (const svg of document.getElementsByClassName('dependency-svg')) {
+		const hover = function (event) {
+			const node = event.target.closest('[data-node]');
+			if (node) { trace(svg, node.dataset.node); }
+		};
+		svg.addEventListener('pointerover', hover);
+		svg.addEventListener('focusin', hover);
+		svg.addEventListener('pointerleave', function () { trace(svg, resting(svg)); });
+		svg.addEventListener('focusout', function () { trace(svg, resting(svg)); });
+	}
+
+	function apply() {
+		const key = focus.value;
+		for (const group of groups) {
+			group.hidden = !!key && !words(group.dataset.members).includes(key);
+			trace(group.querySelector('svg'), group.hidden ? '' : key);
+		}
+		for (const row of rows) {
+			row.hidden = !!key && !words(row.dataset.related).includes(key);
+		}
+		status.textContent = key ? 'Showing the shortcuts connected to ' + focus.selectedOptions[0].textContent : 'Showing all connections';
+	}
+
+	function fromHash() {
+		const key = window.location.hash.startsWith('#map-') ? decodeURIComponent(window.location.hash.slice(5)) : '';
+		if (!Array.from(focus.options).some(function (option) { return option.value === key; })) { return; }
+		focus.value = key;
+		apply();
+		const node = document.getElementById('map-' + key);
+		if (node) { node.scrollIntoView({block: 'center', inline: 'center'}); }
+	}
+
+	focus.addEventListener('change', function () {
+		try {
+			window.history.replaceState(null, '', focus.value ? '#map-' + focus.value : window.location.pathname + window.location.search);
+		} catch (error) {}
+		apply();
+	});
+	window.addEventListener('hashchange', fromHash);
+	document.getElementById('map-controls').hidden = false;
+	fromHash();
+
+	const themeButton = document.getElementById('theme');
+	const themeNames = {auto: 'automatic', dark: 'dark', light: 'light'};
+	const nextTheme = {auto: 'dark', dark: 'light', light: 'auto'};
+	const currentTheme = function () { return document.documentElement.dataset.theme || 'auto'; };
+	const labelTheme = function () {
+		const text = 'Appearance: ' + themeNames[currentTheme()];
+		themeButton.title = text;
+		themeButton.setAttribute('aria-label', text);
+	};
+	themeButton.addEventListener('click', function () {
+		const next = nextTheme[currentTheme()];
+		try {
+			if (next === 'auto') { localStorage.removeItem('sss-theme'); } else { localStorage.setItem('sss-theme', next); }
+		} catch (error) {}
+		if (next === 'auto') { delete document.documentElement.dataset.theme; } else { document.documentElement.dataset.theme = next; }
+		labelTheme();
+	});
+	labelTheme();
+});
+</script>
+</head>
+<body>
+
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span>Shortcuts</span></a>
+<div class="topbar-actions">
+<a class="topbar-link" href="dependencies.html" aria-current="page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg><span>Dependency map</span></a>
+<button type="button" class="icon-button" id="theme" title="Appearance: automatic" aria-label="Appearance: automatic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+</div>
+</header>
+<main>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg> All shortcuts</a><span aria-hidden="true">/</span><span>Dependency map</span></nav>
+<div class="page-heading map-heading"><div><span class="eyebrow">Follow the connections</span><h1>Dependency map</h1><p>How the shortcuts in this backup run each other through Run Shortcut actions: 3 connected, 0 standalone, 1 missing reference, 1 chosen at run time.</p></div><span class="badge">Workflow-linked</span></div>
+<div class="graph-controls" id="map-controls" hidden><label class="graph-filter"><span>Focus on</span><select id="focus"><option value="">All connections</option><option value="caller">Caller</option><option value="helper">Helper</option><option value="utility">Utility</option></select></label></div>
+<p class="sr-only" id="map-status" role="status" aria-live="polite"></p>
+<div class="graph-legend"><span><i class="legend-line"></i>Runs shortcut</span><span><i class="legend-line missing"></i>Missing reference</span><span><i class="legend-line dynamic"></i>Chosen at run time</span><span>Calls flow left to right</span></div>
+<svg class="map-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
+<div class="map-groups">
+<section class="map-group" data-members="caller helper utility">
+<svg class="dependency-svg" width="862" height="306" viewBox="0 0 862 306" role="group" aria-label="Dependencies between Caller and 2 other shortcuts">
+<text class="column-label" x="22" y="26">Callers</text>
+<text class="column-label" x="328" y="26">Building blocks</text>
+<text class="column-label" x="634" y="26">Called shortcuts</text>
+<path class="edge" data-from="caller" data-to="caller" d="M170 194 L170 208 L206 208 L206 194" marker-end="url(#arrow)"><title>Caller runs itself</title></path>
+<path class="edge" data-from="caller" data-to="helper" d="M230 142 L260 142 L260 133 L326 133" marker-end="url(#arrow)"><title>Caller runs Helper · 3 calls</title></path>
+<path class="edge" data-from="caller" data-to="utility" d="M230 163 L268 163 L268 200 L326 200 L536 200 L574 200 L574 85 L632 85" marker-end="url(#arrow)"><title>Caller runs Utility</title></path>
+<path class="edge dynamic" data-from="caller" data-to="dynamic-1" d="M230 173 L276 173 L276 220 L326 220 L536 220 L582 220 L582 163 L632 163" marker-end="url(#arrow)"><title>Caller runs a shortcut chosen at run time</title></path>
+<path class="edge missing" data-from="caller" data-to="missing-2" d="M230 183 L284 183 L284 240 L326 240 L536 240 L590 240 L590 251 L632 251" marker-end="url(#arrow)"><title>Caller runs Ghost, which is not in this backup</title></path>
+<path class="edge" data-from="helper" data-to="utility" d="M536 133 L566 133 L566 64 L632 64" marker-end="url(#arrow)"><title>Helper runs Utility</title></path>
+<a class="graph-node" id="map-caller" data-node="caller" href="shortcuts/caller.html" aria-label="Caller, 7 actions · recursive"><title>Caller</title><rect x="20" y="132" width="210" height="62" rx="12"></rect><circle class="dot" cx="42" cy="163" r="6" fill="#4F9BFF"></circle><text x="58" y="159">Caller</text><text class="node-subtitle" x="58" y="178">7 actions · recursive</text></a>
+<a class="graph-node" id="map-helper" data-node="helper" href="shortcuts/helper.html" aria-label="Helper, 1 action"><title>Helper</title><rect x="326" y="102" width="210" height="62" rx="12"></rect><circle class="dot" cx="348" cy="133" r="6" fill="#4F9BFF"></circle><text x="364" y="129">Helper</text><text class="node-subtitle" x="364" y="148">1 action</text></a>
+<a class="graph-node" id="map-utility" data-node="utility" href="shortcuts/utility.html" aria-label="Utility, 1 action"><title>Utility</title><rect x="632" y="44" width="210" height="62" rx="12"></rect><circle class="dot" cx="654" cy="75" r="6" fill="#4F9BFF"></circle><text x="670" y="71">Utility</text><text class="node-subtitle" x="670" y="90">1 action</text></a>
+<g class="graph-node dynamic-node" data-node="dynamic-1" role="img" aria-label="Chosen at run time, From a variable"><title>Chosen at run time</title><rect x="632" y="132" width="210" height="62" rx="12"></rect><circle class="dot" cx="654" cy="163" r="6"></circle><text x="670" y="159">Chosen at run time</text><text class="node-subtitle" x="670" y="178">From a variable</text></g>
+<g class="graph-node missing-node" data-node="missing-2" role="img" aria-label="Ghost, Missing shortcut"><title>Ghost</title><rect x="632" y="220" width="210" height="62" rx="12"></rect><circle class="dot" cx="654" cy="251" r="6"></circle><text x="670" y="247">Ghost</text><text class="node-subtitle" x="670" y="266">Missing shortcut</text></g>
+</svg>
+</section>
+</div>
+<section class="relationship-list" aria-labelledby="relationships-heading">
+<h2 id="relationships-heading">Relationships</h2>
+<div class="relationship-row" data-related="caller helper utility">
+<a href="shortcuts/caller.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><strong>Caller</strong></a>
+<div><a class="chip" href="shortcuts/helper.html">Runs Helper</a><a class="chip" href="shortcuts/utility.html">Runs Utility</a><span class="chip">Runs itself</span><span class="chip chip-missing"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg> Missing: Ghost</span><span class="chip">Chosen at run time</span>
+</div>
+</div>
+<div class="relationship-row" data-related="caller helper utility">
+<a href="shortcuts/helper.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><strong>Helper</strong></a>
+<div><a class="chip" href="shortcuts/utility.html">Runs Utility</a><span class="chip-muted">Called by 1</span>
+</div>
+</div>
+<div class="relationship-row" data-related="caller helper utility">
+<a href="shortcuts/utility.html"><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><strong>Utility</strong></a>
+<div><span class="chip-muted">No outgoing calls</span><span class="chip-muted">Called by 2</span>
+</div>
+</div>
+</section>
+</main>
+</body>
+</html>

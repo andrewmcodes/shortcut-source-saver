@@ -28,17 +28,22 @@ document.addEventListener('DOMContentLoaded', function () {
 	for (const link of document.getElementsByClassName('magic')) {
 		link.addEventListener('click', function (event) {
 			event.stopPropagation();
-			reveal(this.dataset.target);
+			follow(this, event);
 		});
 		link.addEventListener('keydown', function (event) {
 			if (event.key !== 'Enter' && event.key !== ' ') { return; }
 			event.preventDefault();
 			event.stopPropagation();
-			reveal(this.dataset.target);
+			follow(this, event);
 		});
 		link.addEventListener('keyup', function (event) {
 			if (event.key === ' ') { event.preventDefault(); }
 		});
+	}
+
+	function follow(link, event) {
+		if (!link.dataset.href) { reveal(link.dataset.target); return; }
+		if (event.metaKey || event.ctrlKey) { window.open(link.dataset.href); } else { window.location.href = link.dataset.href; }
 	}
 
 	function reveal(index) {
@@ -83,7 +88,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <header class="topbar">
 <a class="brand" href="/shortcut-source-saver/index.html"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span>My Shortcuts</span></a>
+<div class="topbar-actions">
+<a class="topbar-link" href="/shortcut-source-saver/dependencies.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg><span>Dependency map</span></a>
 <button type="button" class="icon-button" id="theme" title="Appearance: automatic" aria-label="Appearance: automatic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
+</div>
 </header>
 <main>
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/shortcut-source-saver/index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg> All shortcuts</a><span aria-hidden="true">/</span><span>Linear Shortcut</span></nav>
@@ -106,6 +114,15 @@ document.addEventListener('DOMContentLoaded', function () {
 <div><dt>Workflow types</dt><dd>ActionExtension, NCWidget, WFWorkflowTypeShowInSearch</dd></div>
 <div><dt>Accepts</dt><dd>Text</dd></div>
 </dl>
+<section class="relations" aria-labelledby="runs-heading">
+<h3 id="runs-heading">Runs</h3>
+<p class="relations-empty">No Run Shortcut actions.</p>
+</section>
+<section class="relations" aria-labelledby="callers-heading">
+<h3 id="callers-heading">Called by</h3>
+<p class="relations-empty">Nothing in this backup runs it.</p>
+</section>
+<a class="btn map-button" href="/shortcut-source-saver/dependencies.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8 11 7-5m-7 7 7 5"></path></svg> Open dependency map</a>
 </details>
 </aside>
 <section class="actions" aria-labelledby="actions-heading">
