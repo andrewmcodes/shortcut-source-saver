@@ -53,6 +53,16 @@ A `.shortcut` file is a plist dictionary. Every key in it has a database source,
 
 Rows are filtered to `ZTOMBSTONED = 0` (deleted-but-not-yet-purged shortcuts) and to rows that actually have a name and an actions row. `ZHIDDENFROMLIBRARYANDSYNC = 1` marks shortcuts hidden from the library; they are returned with `Hidden` set so the caller can decide, and are excluded by default.
 
+### Sync-conflict copies
+
+When iCloud sync finds the same shortcut edited on two devices, Shortcuts keeps both versions: the loser stays in `ZSHORTCUT` with `ZCONFLICTOF` set to the `Z_PK` of the row it conflicted with, and the app stops showing it. These rows are not tombstoned and not `ZHIDDENFROMLIBRARYANDSYNC`, so a plain filter returns them as ordinary shortcuts. A real library had 17 of them, for example `_Get App from Input` as a conflict copy of `get_apple_app`. The copy often carries the shortcut's old name, because the original was renamed after the conflict.
+
+`List` resolves the column with a self-join on `Z_PK` and returns these rows with `Status` set to `StatusConflict` and `ConflictOf` holding the original's workflow id and name. The original row is joined without the tombstone filter, so a copy whose original was deleted still names it; a copy whose `ZCONFLICTOF` points at a row that no longer exists is still a conflict, with an empty `ConflictOf`. Conflict copies are returned, not filtered: the user wants old versions kept and findable, so the decision to mark rather than drop them belongs to the caller.
+
+`ZCONFLICTOF` is optional in the schema check. `Open` records whether the column exists, and on a schema without it `List` runs a query that reports every shortcut as active instead of failing.
+
+`StatusDeleted` is never produced by the library — a deleted shortcut has no row to read. It exists on `Shortcut` so that a workflow reloaded from a backup can carry the status the backup recorded; see [backup.md](backup.md).
+
 A row that passes those filters but has a `NULL` or empty `ZWORKFLOWID` makes `List` fail with an error naming the shortcut. It is not silently skipped, because the workflow id is the key for slug assignment and disambiguation, and dropping a shortcut from a backup without saying so is worse than stopping. No real library has been seen with one; before this check the same row failed with an anonymous SQL scan error.
 
 ### Fidelity

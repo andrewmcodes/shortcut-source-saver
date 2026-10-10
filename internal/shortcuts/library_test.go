@@ -184,3 +184,68 @@ func TestListNamesAShortcutWithNoWorkflowIdentifier(t *testing.T) {
 		t.Fatalf("List error = %v, want one naming the shortcut", err)
 	}
 }
+
+func execAll(t *testing.T, path string, stmts ...string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+}
+
+func listFixture(t *testing.T, path string) map[string]Shortcut {
+	t.Helper()
+	lib, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer lib.Close()
+	all, err := lib.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	byName := map[string]Shortcut{}
+	for _, s := range all {
+		byName[s.Name] = s
+	}
+	return byName
+}
+
+func TestListMarksSyncConflictCopiesWithTheirOriginal(t *testing.T) {
+	path := fixtureLibrary(t, "ORPHAN-ID")
+	execAll(t, path,
+		`ALTER TABLE ZSHORTCUT ADD COLUMN ZCONFLICTOF INTEGER`,
+		`INSERT INTO ZSHORTCUT (Z_PK, ZNAME, ZWORKFLOWID, ZACTIONS) VALUES (2, 'get_apple_app', 'ORIGINAL-ID', 1)`,
+		`INSERT INTO ZSHORTCUT (Z_PK, ZNAME, ZWORKFLOWID, ZACTIONS, ZCONFLICTOF) VALUES (3, '_Get App from Input', 'COPY-ID', 1, 2)`,
+		`INSERT INTO ZSHORTCUT (Z_PK, ZNAME, ZWORKFLOWID, ZACTIONS, ZCONFLICTOF) VALUES (4, 'Dangling', 'DANGLING-ID', 1, 99)`,
+	)
+
+	byName := listFixture(t, path)
+
+	conflict := byName["_Get App from Input"]
+	if conflict.Status != StatusConflict {
+		t.Errorf("conflict copy Status = %q, want %q", conflict.Status, StatusConflict)
+	}
+	if want := (Original{WorkflowID: "ORIGINAL-ID", Name: "get_apple_app"}); conflict.ConflictOf != want {
+		t.Errorf("ConflictOf = %+v, want %+v", conflict.ConflictOf, want)
+	}
+	if original := byName["get_apple_app"]; original.Status != StatusActive || original.ConflictOf != (Original{}) {
+		t.Errorf("original = %q %+v, want active with no ConflictOf", original.Status, original.ConflictOf)
+	}
+	if dangling := byName["Dangling"]; dangling.Status != StatusConflict || dangling.ConflictOf != (Original{}) {
+		t.Errorf("dangling conflict = %q %+v, want a conflict with an unknown original", dangling.Status, dangling.ConflictOf)
+	}
+}
+
+func TestListWorksWithoutTheConflictColumn(t *testing.T) {
+	byName := listFixture(t, fixtureLibrary(t, "ORPHAN-ID"))
+	if s, ok := byName["Orphan"]; !ok || s.Status != StatusActive {
+		t.Errorf("List without ZCONFLICTOF = %+v, want the shortcut listed as active", byName)
+	}
+}

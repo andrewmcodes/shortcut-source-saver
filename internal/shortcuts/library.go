@@ -24,8 +24,23 @@ type Shortcut struct {
 	Modified    time.Time
 	Icon        Icon
 	Hidden      bool
+	Status      Status
+	ConflictOf  Original
 
 	pk int64
+}
+
+type Status string
+
+const (
+	StatusActive   Status = ""
+	StatusConflict Status = "conflict"
+	StatusDeleted  Status = "deleted"
+)
+
+type Original struct {
+	WorkflowID string
+	Name       string
 }
 
 type Icon struct {
@@ -53,6 +68,8 @@ type Workflow struct {
 type Library struct {
 	db      *sql.DB
 	tempDir string
+
+	hasConflictColumn bool
 }
 
 func DefaultPath() (string, error) {
@@ -124,25 +141,14 @@ var requiredSchema = map[string][]string{
 	"ZSHORTCUTICON":    {"ZGLYPHNUMBER", "ZBACKGROUNDCOLORVALUE"},
 }
 
+const conflictColumn = "ZCONFLICTOF"
+
 func (l *Library) verifySchema() error {
 	const unsupported = "this macOS version stores Shortcuts differently than this tool understands"
 
 	for table, columns := range requiredSchema {
-		rows, err := l.db.Query("SELECT name FROM pragma_table_info(?)", table)
+		present, err := l.columns(table)
 		if err != nil {
-			return err
-		}
-		present := map[string]bool{}
-		for rows.Next() {
-			var name string
-			if err := rows.Scan(&name); err != nil {
-				rows.Close()
-				return err
-			}
-			present[name] = true
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
 			return err
 		}
 		if len(present) == 0 {
@@ -153,22 +159,59 @@ func (l *Library) verifySchema() error {
 				return fmt.Errorf("column %s.%s is missing: %s", table, c, unsupported)
 			}
 		}
+		if table == "ZSHORTCUT" {
+			l.hasConflictColumn = present[conflictColumn]
+		}
 	}
 	return nil
+}
+
+func (l *Library) columns(table string) (map[string]bool, error) {
+	rows, err := l.db.Query("SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	present := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		present[name] = true
+	}
+	return present, rows.Err()
 }
 
 const listQuery = `
 SELECT s.Z_PK, s.ZNAME, s.ZWORKFLOWID, s.ZACTIONCOUNT,
        s.ZCREATIONDATE, s.ZMODIFICATIONDATE,
        COALESCE(i.ZGLYPHNUMBER, 0), COALESCE(i.ZBACKGROUNDCOLORVALUE, 0),
-       COALESCE(s.ZHIDDENFROMLIBRARYANDSYNC, 0)
+       COALESCE(s.ZHIDDENFROMLIBRARYANDSYNC, 0),
+       s.ZCONFLICTOF IS NOT NULL, COALESCE(o.ZWORKFLOWID, ''), COALESCE(o.ZNAME, '')
+FROM ZSHORTCUT s
+LEFT JOIN ZSHORTCUTICON i ON i.Z_PK = s.ZICON
+LEFT JOIN ZSHORTCUT o ON o.Z_PK = s.ZCONFLICTOF
+WHERE COALESCE(s.ZTOMBSTONED, 0) = 0 AND s.ZNAME IS NOT NULL AND s.ZACTIONS IS NOT NULL
+ORDER BY s.ZNAME COLLATE NOCASE`
+
+const listQueryWithoutConflicts = `
+SELECT s.Z_PK, s.ZNAME, s.ZWORKFLOWID, s.ZACTIONCOUNT,
+       s.ZCREATIONDATE, s.ZMODIFICATIONDATE,
+       COALESCE(i.ZGLYPHNUMBER, 0), COALESCE(i.ZBACKGROUNDCOLORVALUE, 0),
+       COALESCE(s.ZHIDDENFROMLIBRARYANDSYNC, 0),
+       0, '', ''
 FROM ZSHORTCUT s
 LEFT JOIN ZSHORTCUTICON i ON i.Z_PK = s.ZICON
 WHERE COALESCE(s.ZTOMBSTONED, 0) = 0 AND s.ZNAME IS NOT NULL AND s.ZACTIONS IS NOT NULL
 ORDER BY s.ZNAME COLLATE NOCASE`
 
 func (l *Library) List() ([]Shortcut, error) {
-	rows, err := l.db.Query(listQuery)
+	query := listQueryWithoutConflicts
+	if l.hasConflictColumn {
+		query = listQuery
+	}
+	rows, err := l.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -183,9 +226,10 @@ func (l *Library) List() ([]Shortcut, error) {
 			count             sql.NullInt64
 			color             int64
 			hidden            int64
+			conflict          bool
 		)
 		if err := rows.Scan(&s.pk, &s.Name, &workflowID, &count, &created, &modified,
-			&s.Icon.Glyph, &color, &hidden); err != nil {
+			&s.Icon.Glyph, &color, &hidden, &conflict, &s.ConflictOf.WorkflowID, &s.ConflictOf.Name); err != nil {
 			return nil, err
 		}
 		if !workflowID.Valid || workflowID.String == "" {
@@ -197,6 +241,9 @@ func (l *Library) List() ([]Shortcut, error) {
 		s.Modified = coreDataTime(modified)
 		s.Icon.Color = uint32(color)
 		s.Hidden = hidden == 1
+		if conflict {
+			s.Status = StatusConflict
+		}
 		out = append(out, s)
 	}
 	return out, rows.Err()
