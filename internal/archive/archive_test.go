@@ -557,6 +557,46 @@ func TestNewMetadataRendersZeroDatesAsEmptyStrings(t *testing.T) {
 	}
 }
 
+func TestMetadataOmitsStatusForActiveShortcuts(t *testing.T) {
+	data, err := CanonicalJSON(NewMetadata(&shortcuts.Workflow{Shortcut: shortcuts.Shortcut{Name: "Encode URL"}}))
+	if err != nil {
+		t.Fatalf("CanonicalJSON: %v", err)
+	}
+	for _, key := range []string{`"status"`, `"conflict_of"`} {
+		if strings.Contains(string(data), key) {
+			t.Errorf("active shortcut metadata contains %s, which would churn every existing backup:\n%s", key, data)
+		}
+	}
+}
+
+func TestMetadataRecordsAConflictCopyAndItsOriginal(t *testing.T) {
+	w := &shortcuts.Workflow{Shortcut: shortcuts.Shortcut{
+		Name:       "_Get App from Input",
+		WorkflowID: "55992F98-1B4D-44CF-94C8-9314FF434579",
+		Status:     shortcuts.StatusConflict,
+		ConflictOf: shortcuts.Original{WorkflowID: "D93F4368-D3D6-4695-A5CB-2EFE615A348D", Name: "get_apple_app"},
+	}}
+	data, err := CanonicalJSON(NewMetadata(w))
+	if err != nil {
+		t.Fatalf("CanonicalJSON: %v", err)
+	}
+	want := `"conflict_of": {
+    "name": "get_apple_app",
+    "workflow_id": "D93F4368-D3D6-4695-A5CB-2EFE615A348D"
+  },`
+	if !strings.Contains(string(data), want) || !strings.Contains(string(data), `"status": "conflict"`) {
+		t.Errorf("conflict metadata =\n%s\nwant status conflict and\n%s", data, want)
+	}
+
+	var round Metadata
+	if err := json.Unmarshal(data, &round); err != nil {
+		t.Fatal(err)
+	}
+	if round.ShortcutStatus() != shortcuts.StatusConflict || round.Original() != w.ConflictOf {
+		t.Errorf("round trip = %q %+v, want conflict of %+v", round.ShortcutStatus(), round.Original(), w.ConflictOf)
+	}
+}
+
 func TestCanonicalizeWalksIntoStructFields(t *testing.T) {
 	type inner struct {
 		Blob []byte    `json:"blob"`

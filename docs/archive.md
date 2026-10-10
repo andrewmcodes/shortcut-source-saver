@@ -94,6 +94,36 @@ Non-ASCII runes are **dropped**, not transliterated — there is no correct ASCI
 
 Names are not unique in a Shortcuts library, so slugs are not either. Disambiguation is the caller's problem; the workflow ID is the stable key.
 
+## Status in `metadata.json`
+
+A backup keeps every shortcut it has ever written, so `metadata.json` records whether the shortcut is still live. Two optional keys carry it, and both are absent for an active shortcut:
+
+| key | value |
+| --- | --- |
+| `status` | `"conflict"` for a sync-conflict copy the Shortcuts app hides, `"deleted"` for a shortcut no longer in the library |
+| `conflict_of` | `{"name": ..., "workflow_id": ...}` naming the shortcut a conflict copy was split from |
+
+```json
+{
+  "action_count": 12,
+  "color": "#FF4351",
+  "conflict_of": {
+    "name": "get_apple_app",
+    "workflow_id": "D93F4368-D3D6-4695-A5CB-2EFE615A348D"
+  },
+  "created": "2024-03-01T09:12:44-08:00",
+  "glyph": 59511,
+  "name": "_Get App from Input",
+  "status": "conflict",
+  "workflow_id": "55992F98-1B4D-44CF-94C8-9314FF434579",
+  ...
+}
+```
+
+Absent means active, rather than writing `"status": "active"`, so that adding the field did not rewrite the `metadata.json` of every shortcut already backed up. `status` is a single value: a conflict copy that is later deleted becomes `"deleted"` and keeps its `conflict_of`, so the history stays readable. `conflict_of` is omitted when the database points at an original row that no longer exists. Its `name` is the original's name at the time of the last write, so renaming the original rewrites the copy's metadata on its next backup.
+
+`NewMetadata` fills both keys from `Workflow.Status` and `Workflow.ConflictOf`, so conflict copies are marked by the same write that backs them up, and `sss export` includes the marking because it reuses `NewMetadata`. `"deleted"` is never produced here: a deleted shortcut cannot be loaded from the library, so it is set by the backup run on the files already on disk — see [backup.md](backup.md#shortcuts-that-are-no-longer-active). `Metadata.ShortcutStatus` and `Metadata.Original` convert the keys back into the `shortcuts` types.
+
 ## Tests
 
 `internal/archive/archive_test.go` is table-driven and needs neither the Shortcuts database nor the `shortcuts` binary. The load-bearing cases:
