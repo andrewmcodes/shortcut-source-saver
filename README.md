@@ -58,6 +58,7 @@ sss -o ./exports                              # pick in the TUI, write to ./expo
 | `sss backup --all -o <dir>` | Back up into any directory, with no config or git repo |
 | `sss build` | Regenerate the web reviews and site index |
 | `sss init` | Write an example config and scaffold the backup repo |
+| `sss export [-o <path>]` | Write every shortcut's JSON into one `.zip` — no config, git, or signing |
 
 Useful flags:
 
@@ -91,6 +92,18 @@ docs/
 ```
 
 `shortcut.json` is the source of truth, because it is the only form that produces a readable diff. The `.shortcut` file is a build artefact — it is only rewritten when the JSON actually changes, since signing is non-deterministic and re-signing every run would add a new binary blob to history each time. A backup run that changes nothing leaves the working tree clean.
+
+## One-off export
+
+For a quick snapshot without setting anything up, `sss export` writes the whole library into a single zip:
+
+```sh
+sss export                         # ./shortcuts-20261009-212106.zip
+sss export -o ~/Downloads          # a directory gets the timestamped name inside it
+sss export -o ~/Desktop/lib.zip    # or name the file yourself
+```
+
+The zip holds `shortcuts/<slug>/shortcut.json` and `metadata.json` for every shortcut — byte-for-byte what a backup would write, minus the signed file and README. It needs no config file and never touches git. An existing file is never overwritten, and every shortcut is read and checked before anything is written, so a failed export leaves nothing behind. `--include-hidden`, `--allow-secrets` and `--database` apply as they do to `backup`. Details: [docs/export.md](docs/export.md).
 
 ## Configuration
 
@@ -132,6 +145,7 @@ The scan is deliberately conservative about false positives — see [docs/secret
 
 - [docs/extraction.md](docs/extraction.md) — reading the Shortcuts database, the WAL trap, the plist field mapping, icon colour encoding
 - [docs/archive.md](docs/archive.md) — building `.shortcut` files, canonical JSON, why signing is skipped when nothing changed
+- [docs/export.md](docs/export.md) — the one-shot zip export and its no-overwrite, all-or-nothing guarantees
 - [docs/catalog.md](docs/catalog.md) — where human-readable action names come from
 - [docs/rendering.md](docs/rendering.md) — how a web review is generated
 - [docs/configuration.md](docs/configuration.md) — every config option
