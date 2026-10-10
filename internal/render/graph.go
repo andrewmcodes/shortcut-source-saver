@@ -264,6 +264,9 @@ func edgeTitle(from, to *mapNode, e *mapEdge) string {
 		title = from.Name + " runs a shortcut chosen at run time"
 	default:
 		title = from.Name + " runs " + to.Name
+		if e.from == e.to {
+			title = from.Name + " runs itself"
+		}
 	}
 	if e.count > 1 {
 		title += " · " + strconv.Itoa(e.count) + " calls"
