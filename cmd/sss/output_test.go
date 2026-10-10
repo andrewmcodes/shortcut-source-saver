@@ -31,27 +31,89 @@ func samePath(t *testing.T, got, want string) {
 }
 
 func TestOutputFlagConflicts(t *testing.T) {
-	cases := map[string][]string{
-		"backup with push":   {"backup", "--all", "-o", "out", "--push"},
-		"backup with repo":   {"backup", "--all", "--output", "out", "--repo", "/tmp/elsewhere"},
-		"picker with push":   {"-o", "out", "--push"},
-		"push before backup": {"--push", "backup", "--all", "-o", "out"},
+	const exclusive = "[output "
+	cases := map[string]struct {
+		args []string
+		want string
+	}{
+		"backup with push":       {[]string{"backup", "--all", "-o", "out", "--push"}, exclusive},
+		"backup with repo":       {[]string{"backup", "--all", "--output", "out", "--repo", "/tmp/elsewhere"}, exclusive},
+		"picker with push":       {[]string{"-o", "out", "--push"}, exclusive},
+		"push before backup":     {[]string{"--push", "backup", "--all", "-o", "out"}, exclusive},
+		"backup force alone":     {[]string{"backup", "--all", "--force"}, "--force only applies with --output"},
+		"picker force alone":     {[]string{"--force"}, "--force only applies with --output"},
+		"empty output directory": {[]string{"backup", "--all", "--output="}, "--output needs a directory"},
 	}
-	for name, args := range cases {
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			root := newRootCommand()
-			root.SetArgs(append(args, "--database", filepath.Join(t.TempDir(), "missing.sqlite")))
+			root.SetArgs(append(tc.args, "--database", filepath.Join(t.TempDir(), "missing.sqlite")))
 			root.SetOut(io.Discard)
 			root.SetErr(io.Discard)
 
 			err := root.Execute()
 			if err == nil {
-				t.Fatal("Execute succeeded, want a flag conflict")
+				t.Fatal("Execute succeeded, want a flag error")
 			}
-			if !strings.Contains(err.Error(), "none of the others can be") || !strings.Contains(err.Error(), "output") {
-				t.Errorf("error = %q, want a mutually exclusive flag error naming --output", err)
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %q, want it to contain %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func writeBackedUpShortcut(t *testing.T, dir string) {
+	t.Helper()
+	writeFile(t, dir, "shortcuts/encode-url/shortcut.json", `{"WFWorkflowActions":[]}`)
+	writeFile(t, dir, "shortcuts/encode-url/metadata.json", `{"name":"Encode URL","workflow_id":"44434252-BEA5-4DA6-BC72-949BD054B2E3"}`)
+}
+
+func TestOutputDirGuard(t *testing.T) {
+	isolateConfig(t)
+
+	foreign := t.TempDir()
+	writeFile(t, foreign, "docs/index.html", "<p>my project docs</p>")
+	writeFile(t, foreign, "notes.txt", "mine")
+
+	ours := t.TempDir()
+	writeBackedUpShortcut(t, ours)
+	writeFile(t, ours, ".gitignore", "bin/")
+
+	empty := t.TempDir()
+	writeFile(t, empty, ".DS_Store", "")
+
+	cases := map[string]struct {
+		flags   globalFlags
+		refused bool
+	}{
+		"foreign non-empty dir is refused":   {globalFlags{outputDir: foreign}, true},
+		"--force allows a foreign dir":       {globalFlags{outputDir: foreign, force: true}, false},
+		"re-running into sss output is fine": {globalFlags{outputDir: ours}, false},
+		"empty dir is fine":                  {globalFlags{outputDir: empty}, false},
+		"missing dir is fine":                {globalFlags{outputDir: filepath.Join(empty, "new")}, false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadSessionConfig(&tc.flags)
+			if !tc.refused {
+				if err != nil {
+					t.Fatalf("loadSessionConfig: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("loadSessionConfig accepted a non-empty directory that is not an sss backup")
+			}
+			for _, want := range []string{"--force", "docs/ already exists"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want it to mention %q", err, want)
+				}
+			}
+		})
+	}
+
+	if got, _ := os.ReadFile(filepath.Join(foreign, "docs", "index.html")); string(got) != "<p>my project docs</p>" {
+		t.Error("the guard let something overwrite the foreign directory")
 	}
 }
 
@@ -115,8 +177,7 @@ func TestOutputDirMustNotBeAFile(t *testing.T) {
 func TestFinishIntoAnOutputDirWritesTheSiteWithoutGit(t *testing.T) {
 	isolateConfig(t)
 	dir := filepath.Join(t.TempDir(), "plain")
-	writeFile(t, dir, "shortcuts/encode-url/shortcut.json", `{"WFWorkflowActions":[]}`)
-	writeFile(t, dir, "shortcuts/encode-url/metadata.json", `{"name":"Encode URL"}`)
+	writeBackedUpShortcut(t, dir)
 
 	flags := &globalFlags{outputDir: dir}
 	cfg, err := loadSessionConfig(flags)

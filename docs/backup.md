@@ -113,7 +113,20 @@ sss -o ~/Desktop/shortcuts
 
 **Re-running into the same directory is idempotent.** Nothing here bypasses the write-if-changed and signing-skip rules above; slugs still come from the whole library, never from what is already in `DIR`. A second run with no edits reports every shortcut `unchanged` and leaves every file's bytes and modification time untouched, including the `.shortcut` files.
 
-**It writes where you point it.** `-o .` in a directory that already has a `docs/index.html` will replace it, the same way `cp -r` would. The tool does not try to guess whether a folder "looks like" a backup.
+### The overwrite guard and `--force`
+
+`-o .` run from a project root would write `shortcuts/` and `docs/` beside the project's own files and replace its `docs/index.html`. So before anything is written — before the Shortcuts database is opened, and before the picker appears — `InspectDir` classifies `DIR`:
+
+| `DIR` is | result |
+| --- | --- |
+| missing | allowed; created on first write |
+| empty, or holds only `.DS_Store` and `.git` | allowed, so `mkdir x && cd x && git init && sss backup --all -o .` works |
+| an sss backup | allowed, without `--force`, so re-running into the same folder just works |
+| anything else | refused: the error names `DIR`, says sss would write `shortcuts/` and the site directory into it, lists which of those already exist, and points at `--force` |
+
+**"An sss backup" means `DIR/shortcuts/<any>/metadata.json` exists and decodes to JSON with a non-empty `name` and `workflow_id`.** That file is written by every successful backup of every shortcut, and those two keys are the ones sss always fills from the library, so one backed-up shortcut is enough. It is checked by content, not by directory names alone, because `shortcuts/` and `docs/` are ordinary names a project may already have — a folder of someone's own notes under `shortcuts/` does not count. Other files beside the backup (a README, `.gitignore`, the `.github/` workflow `sss init` scaffolds) do not matter, so an output folder can be turned into a repository and still be written to without `--force`.
+
+**`--force` skips the check and writes anyway**, replacing any file at a path sss writes; it never deletes anything. It has no short form: `-f` is not used elsewhere in the CLI and an overwrite should be typed out. It applies only with `--output` — given alone it is rejected rather than ignored, because a backup repository has no guard to skip and a silently ignored `--force` would teach the wrong thing.
 
 ## Outcomes
 

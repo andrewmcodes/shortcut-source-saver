@@ -66,6 +66,7 @@ Useful flags:
 | `--config <path>` | Use a specific config file |
 | `--repo <path>` | Override `repo_path` for this run |
 | `-o, --output <dir>` | Write into `<dir>` instead of the backup repo; never commits. On `sss` and `sss backup`; cannot be combined with `--repo` or `--push` |
+| `--force` | With `--output`, write into a non-empty directory that is not already an sss backup (refused by default) |
 | `--no-commit` | Write files but do not commit |
 | `--push` | Push after committing |
 | `--include-hidden` | Include shortcuts hidden from your library |

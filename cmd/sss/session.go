@@ -39,7 +39,15 @@ func loadSessionConfig(flags *globalFlags) (*config.Config, error) {
 		cfg.IncludeHidden = true
 	}
 	if flags.outputDir != "" {
-		return cfg, useOutputDir(cfg, flags.outputDir)
+		if err := useOutputDir(cfg, flags.outputDir); err != nil {
+			return nil, err
+		}
+		if !flags.force {
+			if err := guardOutputDir(cfg); err != nil {
+				return nil, err
+			}
+		}
+		return cfg, nil
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("%w\n\nRun `sss init` to create a config file, or pass --output DIR to write without one", err)
@@ -63,6 +71,41 @@ func useOutputDir(cfg *config.Config, raw string) error {
 	}
 	cfg.BaseURL = ""
 	return nil
+}
+
+func guardOutputDir(cfg *config.Config) error {
+	kind, err := backup.InspectDir(cfg.RepoPath)
+	if err != nil {
+		return err
+	}
+	if kind != backup.DirForeign {
+		return nil
+	}
+
+	siteRel, err := filepath.Rel(cfg.RepoPath, cfg.SitePath())
+	if err != nil {
+		siteRel = cfg.SiteDir
+	}
+	targets := []string{backup.ShortcutsDir + "/", filepath.ToSlash(siteRel) + "/"}
+	var existing []string
+	for _, rel := range targets {
+		if _, err := os.Stat(filepath.Join(cfg.RepoPath, rel)); err == nil {
+			existing = append(existing, rel)
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s is not empty and is not an sss backup, so nothing was written.\n", cfg.RepoPath)
+	fmt.Fprintf(&b, "sss would write %s into it, replacing any file already at the same path", strings.Join(targets, " and "))
+	switch len(existing) {
+	case 0:
+	case 1:
+		fmt.Fprintf(&b, " (%s already exists here)", existing[0])
+	default:
+		fmt.Fprintf(&b, " (%s already exist here)", strings.Join(existing, " and "))
+	}
+	b.WriteString(".\nRe-run with --force to write there anyway, or choose an empty or new directory.")
+	return errors.New(b.String())
 }
 
 func resolveOutputDir(raw string) (string, error) {

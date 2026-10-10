@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 )
 
@@ -8,6 +11,7 @@ type globalFlags struct {
 	configPath    string
 	repoPath      string
 	outputDir     string
+	force         bool
 	allowSecrets  bool
 	includeHidden bool
 	expandAll     bool
@@ -45,7 +49,7 @@ func newRootCommand() *cobra.Command {
 	pf.BoolVar(&flags.noCommit, "no-commit", false, "write files but do not commit")
 	pf.BoolVar(&flags.push, "push", false, "push after committing")
 
-	addOutputFlag(root, flags)
+	addOutputFlags(root, flags)
 
 	backup := newBackupCommand(flags)
 	root.AddCommand(
@@ -54,16 +58,31 @@ func newRootCommand() *cobra.Command {
 		newBuildCommand(flags),
 		newInitCommand(flags),
 	)
-	addOutputFlag(backup, flags)
+	addOutputFlags(backup, flags)
 	markOutputExclusive(root)
 	markOutputExclusive(backup)
 	return root
 }
 
-func addOutputFlag(cmd *cobra.Command, flags *globalFlags) {
+func addOutputFlags(cmd *cobra.Command, flags *globalFlags) {
 	cmd.Flags().StringVarP(&flags.outputDir, "output", "o", "",
 		"write into `DIR` instead of the backup repository (no config or git needed; never commits)")
 	_ = cmd.MarkFlagDirname("output")
+	cmd.Flags().BoolVar(&flags.force, "force", false,
+		"with --output, write into a non-empty directory that is not an sss backup")
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		return validateOutputFlags(cmd, flags)
+	}
+}
+
+func validateOutputFlags(cmd *cobra.Command, flags *globalFlags) error {
+	if cmd.Flags().Changed("output") && strings.TrimSpace(flags.outputDir) == "" {
+		return fmt.Errorf("--output needs a directory")
+	}
+	if flags.force && flags.outputDir == "" {
+		return fmt.Errorf("--force only applies with --output: it allows writing into a non-empty directory that is not an sss backup")
+	}
+	return nil
 }
 
 func markOutputExclusive(cmd *cobra.Command) {
