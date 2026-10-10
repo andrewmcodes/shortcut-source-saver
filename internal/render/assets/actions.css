@@ -217,6 +217,8 @@ span.magic:focus-visible {
 	text-decoration-style: solid;
 }
 
+.missing-ref { color: var(--warning); font-weight: 600; }
+
 .flagged { color: var(--danger); font-weight: 600; }
 .flagged span.var,
 .flagged span.magic { color: inherit; }

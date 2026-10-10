@@ -7,6 +7,8 @@
 {{- else if eq .Kind "box"}}<span class="box">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "var"}}<span class="var">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "magic"}}<span class="magic" data-target="{{.Target}}" role="link" tabindex="0">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "page"}}<span class="magic page-link" data-href="{{.Text}}" role="link" tabindex="0">{{template "nodes" .Children}}</span>
+{{- else if eq .Kind "missing"}}<span class="missing-ref">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "flag"}}<span class="flagged">{{template "nodes" .Children}}</span>
 {{- else if eq .Kind "bold"}}<b>{{template "nodes" .Children}}</b>
 {{- else if eq .Kind "italic"}}<i>{{template "nodes" .Children}}</i>
@@ -41,6 +43,15 @@
 <div class="detail-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .MinimumOS}}<span>iOS {{.}}</span>{{end}}{{with .Modified}}<span>Modified {{.}}</span>{{end}}{{if .Corrupted}}<span class="flagged">Flagged</span>{{end}}</div>
 {{- end}}
 
+{{define "relation"}}
+<div class="related related-{{.Kind}}">
+{{- if .Href}}<a href="{{.Href}}"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><span><strong>{{.Name}}</strong>{{with .Note}}<small>{{.}}</small>{{end}}{{with .Detail}}<small>{{.}}</small>{{end}}</span>{{template "icon-chevron"}}</a>
+{{- else}}<div><span class="related-glyph">{{if eq .Kind "missing"}}{{template "icon-warning"}}{{else if eq .Kind "self"}}{{template "icon-repeat"}}{{else}}{{template "icon-link"}}{{end}}</span><span><strong>{{.Name}}</strong>{{with .Note}}<small>{{.}}</small>{{end}}{{with .Detail}}<code>{{.}}</code>{{end}}</span></div>
+{{- end}}
+{{- with .Actions}}<p class="related-steps">Action{{if gt (len .) 1}}s{{end}}{{range .}} <span class="magic" data-target="{{.}}" role="link" tabindex="0">{{.}}</span>{{end}}</p>{{end}}
+</div>
+{{- end}}
+
 {{define "details"}}
 <aside class="detail-side" aria-labelledby="details-heading">
 <details class="meta-panel" id="details" open>
@@ -55,6 +66,21 @@
 {{- end}}
 {{- end}}
 </dl>
+{{- with .Deps}}
+<section class="relations" aria-labelledby="runs-heading">
+<h3 id="runs-heading">Runs{{with .Runs}} <span>{{len .}}</span>{{end}}</h3>
+{{- range .Runs}}{{template "relation" .}}{{else}}
+<p class="relations-empty">No Run Shortcut actions.</p>
+{{- end}}
+</section>
+<section class="relations" aria-labelledby="callers-heading">
+<h3 id="callers-heading">Called by{{with .CalledBy}} <span>{{len .}}</span>{{end}}</h3>
+{{- range .CalledBy}}{{template "relation" .}}{{else}}
+<p class="relations-empty">Nothing in this backup runs it.</p>
+{{- end}}
+</section>
+<a class="btn map-button" href="{{.MapHref}}">{{template "icon-graph"}} Open dependency map</a>
+{{- end}}
 </details>
 </aside>
 {{- end}}
