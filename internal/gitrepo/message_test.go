@@ -102,3 +102,30 @@ func TestCommitMessageString(t *testing.T) {
 		t.Errorf("String() = %q, want %q", got, want)
 	}
 }
+
+func TestBackupMessageListsStatusChanges(t *testing.T) {
+	got := BackupMessage([]string{"Encode URL", "Daily Note"}, StatusChanges{
+		Renamed:   []string{"Foo → Bar"},
+		Deleted:   []string{"Old Helper"},
+		Restored:  []string{"Came Back"},
+		Conflicts: []string{"_Get App from Input"},
+	})
+	if got.Subject != "chore(shortcuts): back up 2 shortcuts" {
+		t.Errorf("subject = %q", got.Subject)
+	}
+	want := "- Daily Note\n- Encode URL\n\n" +
+		"Renamed:\n- Foo → Bar\n\n" +
+		"Marked deleted (no longer in the library):\n- Old Helper\n\n" +
+		"Restored (back in the library):\n- Came Back\n\n" +
+		"Marked as sync-conflict copies:\n- _Get App from Input"
+	if got.Body != want {
+		t.Errorf("body =\n%s\nwant\n%s", got.Body, want)
+	}
+
+	if plain := BackupMessage([]string{"Daily Note"}, StatusChanges{}); plain != ShortcutBackupMessage("Daily Note") {
+		t.Errorf("no status changes = %+v, want the plain backup message", plain)
+	}
+	if only := BackupMessage(nil, StatusChanges{Deleted: []string{"Old Helper"}}); only.Subject != "chore(shortcuts): update shortcut status" {
+		t.Errorf("status-only subject = %q", only.Subject)
+	}
+}

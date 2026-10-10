@@ -17,6 +17,13 @@ type Metadata struct {
 	ClientVersion        string   `json:"client_version"`
 	MinimumClientVersion string   `json:"minimum_client_version"`
 	WorkflowTypes        []string `json:"workflow_types"`
+	Status               string   `json:"status,omitempty"`
+	ConflictOf           *Origin  `json:"conflict_of,omitempty"`
+}
+
+type Origin struct {
+	WorkflowID string `json:"workflow_id"`
+	Name       string `json:"name"`
 }
 
 func NewMetadata(w *shortcuts.Workflow) Metadata {
@@ -31,7 +38,27 @@ func NewMetadata(w *shortcuts.Workflow) Metadata {
 		ClientVersion:        w.ClientVersion,
 		MinimumClientVersion: w.MinimumClientVersion,
 		WorkflowTypes:        WorkflowTypes(w),
+		Status:               string(w.Status),
+		ConflictOf:           newOrigin(w.ConflictOf),
 	}
+}
+
+func newOrigin(original shortcuts.Original) *Origin {
+	if original == (shortcuts.Original{}) {
+		return nil
+	}
+	return &Origin{WorkflowID: original.WorkflowID, Name: original.Name}
+}
+
+func (m Metadata) ShortcutStatus() shortcuts.Status {
+	return shortcuts.Status(m.Status)
+}
+
+func (m Metadata) Original() shortcuts.Original {
+	if m.ConflictOf == nil {
+		return shortcuts.Original{}
+	}
+	return shortcuts.Original{WorkflowID: m.ConflictOf.WorkflowID, Name: m.ConflictOf.Name}
 }
 
 func WriteMetadata(path string, m Metadata) error {

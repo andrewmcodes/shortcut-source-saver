@@ -164,6 +164,16 @@ func (s *session) finish(ctx context.Context, results []tui.Result) error {
 		return reportFailures(results)
 	}
 
+	changes, err := s.service.ReconcileStatus()
+	if err != nil {
+		return fmt.Errorf("recording shortcut status: %w", err)
+	}
+	statusSummary := summarizeStatusChanges(changes)
+	for _, r := range s.service.Renames() {
+		statusSummary.Renamed = append(statusSummary.Renamed, r.String())
+	}
+	printStatusChanges(statusSummary)
+
 	sitePaths, err := s.service.BuildSite()
 	if err != nil {
 		return fmt.Errorf("building the site: %w", err)
@@ -190,7 +200,7 @@ func (s *session) finish(ctx context.Context, results []tui.Result) error {
 	}
 
 	names := s.service.BackedUpNames()
-	message := gitrepo.ShortcutBackupMessage(names...)
+	message := gitrepo.BackupMessage(names, statusSummary)
 	committed, err := repo.Commit(ctx, message.String())
 	if err != nil {
 		return err
@@ -219,6 +229,37 @@ func (s *session) finish(ctx context.Context, results []tui.Result) error {
 	}
 
 	return reportFailures(results)
+}
+
+func summarizeStatusChanges(changes []backup.StatusChange) gitrepo.StatusChanges {
+	var summary gitrepo.StatusChanges
+	for _, c := range changes {
+		switch {
+		case c.To == shortcuts.StatusDeleted:
+			summary.Deleted = append(summary.Deleted, c.Name)
+		case c.Restored():
+			summary.Restored = append(summary.Restored, c.Name)
+		case c.To == shortcuts.StatusConflict:
+			summary.Conflicts = append(summary.Conflicts, c.Name)
+		}
+	}
+	return summary
+}
+
+func printStatusChanges(summary gitrepo.StatusChanges) {
+	for _, group := range []struct {
+		label string
+		names []string
+	}{
+		{"renamed", summary.Renamed},
+		{"marked deleted", summary.Deleted},
+		{"restored", summary.Restored},
+		{"marked conflict", summary.Conflicts},
+	} {
+		for _, name := range group.names {
+			fmt.Printf("%-16s %s\n", group.label, name)
+		}
+	}
 }
 
 func reportFailures(results []tui.Result) error {

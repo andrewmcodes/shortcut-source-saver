@@ -185,6 +185,35 @@ func TestAddAndCommit(t *testing.T) {
 	}
 }
 
+func TestRemoveStagesARenamedDirectory(t *testing.T) {
+	repo := newRepo(t)
+	ctx := context.Background()
+
+	writeFile(t, repo, "shortcuts/foo/shortcut.json", "{\"a\":1}\n")
+	if err := repo.Add(ctx, "shortcuts/foo/shortcut.json"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.Commit(ctx, "seed"); err != nil {
+		t.Fatal(err)
+	}
+
+	root := repo.Root()
+	if err := os.Rename(filepath.Join(root, "shortcuts", "foo"), filepath.Join(root, "shortcuts", "bar")); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Remove(ctx, filepath.Join(root, "shortcuts", "foo"), filepath.Join(root, "shortcuts", "never-tracked")); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := repo.Add(ctx, "shortcuts/bar/shortcut.json"); err != nil {
+		t.Fatal(err)
+	}
+
+	status := gitExec(t, root, "status", "--porcelain")
+	if !strings.Contains(status, "R  shortcuts/foo/shortcut.json -> shortcuts/bar/shortcut.json") {
+		t.Errorf("status = %q, want a staged rename", status)
+	}
+}
+
 func TestCommitWithNothingStagedIsANoOp(t *testing.T) {
 	repo := newRepo(t)
 	ctx := context.Background()

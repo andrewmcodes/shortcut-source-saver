@@ -8,7 +8,7 @@ This document explains `internal/backup`, which orchestrates a run: read a short
 shortcuts/
   <slug>/
     shortcut.json        canonical JSON, the diffable source of truth
-    metadata.json        name, id, icon, action count, dates, versions
+    metadata.json        name, id, icon, action count, dates, versions, status
     <Name>.shortcut      signed and importable
     README.md            generated documentation
 docs/                    the generated site (site_dir)
@@ -48,7 +48,81 @@ Properties this gives:
 
 Collisions are resolved against the full library including hidden shortcuts, so passing `--include-hidden` cannot change the directory a visible shortcut lands in.
 
-The one wart: if you delete one of a colliding pair, the survivor's slug becomes unique again and its directory is renamed on the next run. That shows up as a rename in git, which is recoverable and rare.
+### Directories already in the destination are claimed
+
+Backups of deleted shortcuts are never removed, so the destination holds directories for shortcuts that are no longer in the library. Each one's `metadata.json` names the workflow id that owns it. `ResolveSlugsAgainst` starts from `ResolveSlugs` and then applies those claims, in this order:
+
+1. If the shortcut already owns the plain slug of its current name, it keeps it.
+2. Otherwise, if it already owns the suffixed form (`<slug>-<first 8 hex of its id>`), it keeps that.
+3. Otherwise, if the slug it would get is owned by a different workflow id, it takes the suffixed form instead (and the full id if even that is taken).
+
+Rule 3 is the important one: a new shortcut named like a deleted one would otherwise land in the deleted one's directory and overwrite its `shortcut.json`, `metadata.json` and `.shortcut`, destroying exactly the old version the backup exists to keep. Rules 1 and 2 remove the old wart where deleting one of a colliding pair made the survivor's slug unique again and moved it to a fresh directory. A directory whose `metadata.json` has no `workflow_id` claims nothing.
+
+A renamed shortcut is never blocked by its own old directory: rule 3 only yields to a *different* workflow id, so the new name's slug is free and the old directory is moved there, as described next.
+
+### Renamed shortcuts move their directory
+
+When a workflow id that is still in the library owns a directory other than the one its current name resolves to, the shortcut was renamed (or a collision changed its slug), and the old directory is a stale duplicate. The user does not want to see it, and its content stays in git history, so the backup moves it instead of leaving it behind:
+
+- **When the shortcut is backed up** and its new directory does not exist yet, `adoptPreviousDirs` renames the old directory to the new slug with `os.Rename` before writing, so git records a rename and the new files overwrite the moved ones. If the new directory already exists, the old one is removed. Either way the run records a `Rename`.
+- **The signed file is carried over, not re-signed.** Its name follows the display name, so a rename needs a file under the new name, but `shortcuts sign` is non-deterministic. When `shortcut.json` is unchanged and no file exists under the new name, the existing `.shortcut` is renamed to it and signing is skipped as usual; when the JSON changed, the new file is signed and the old one removed. Any other `.shortcut` in the directory is removed. The same rule fixes a rename that keeps the slug (for example a change of case), which previously re-signed and left the old file behind.
+- **Stale duplicates of shortcuts this run did not back up** (hidden, or not selected) are cleaned up by `ReconcileStatus`: when the directory for the shortcut's current slug exists and is owned by its workflow id, every other directory with that workflow id is removed. If the current directory does not exist yet, nothing moves until a run backs the shortcut up, because only a backup can write the new name's content.
+- **Never touched:** directories whose workflow id is not in the library (deleted shortcuts) and directories without a readable workflow id.
+- **The old site page** `<site_dir>/shortcuts/<old-slug>.html` is removed by `BuildSite`, so the site does not keep a page for a directory that no longer exists.
+
+Removed paths are staged with `git rm -r --cached --ignore-unmatch` (`Repo.Remove`) before the new files are added, so the commit shows the move as a rename. The next run finds nothing to move, so it is idempotent. Renames are printed and listed in the commit message as `Renamed: Old Name → New Name`; a move that kept the display name prints `Name (old-slug → new-slug)`.
+
+The claims are read once, before the run writes anything, so slugs stay stable within a run. Slugs in an `sss export` zip still come from the library alone, because a zip has no existing directories to protect.
+
+## Shortcuts that are no longer active
+
+The backup keeps every shortcut it has ever written, and records in `metadata.json` which of them are no longer live, so the site can mark, filter and separate them. The shape of the `status` and `conflict_of` keys is in [archive.md](archive.md#status-in-metadatajson). There are two kinds.
+
+**Sync-conflict copies** are still in the library but hidden by the Shortcuts app (see [extraction.md](extraction.md#sync-conflict-copies)). They are **backed up by default**, because they are often the only copy of an old version, and marked `"status": "conflict"` by the same write that backs them up. They take part in slug assignment like any other shortcut, so a conflict copy with the same name as its original suffixes both, as before.
+
+**Deleted shortcuts** have a directory in the destination but no row in the library: absent entirely, or tombstoned. Backup never removes their files; `ReconcileStatus` marks them `"status": "deleted"`.
+
+`ReconcileStatus` runs once at the end of every run that backed up at least one shortcut, before the site is built, in the repository, `--no-commit` and `--output` modes alike. It walks every `shortcuts/*/metadata.json` with a workflow id and compares it against the **whole** library as `List` returns it, hidden shortcuts included, never against the shortcuts this run selected. A shortcut excluded by `--include-hidden` being off, by `sss backup <names>`, or by the picker is still in the library, so it is not deleted. For each directory:
+
+| workflow id | recorded status |
+| --- | --- |
+| in the library, a conflict copy | `conflict`, with `conflict_of` refreshed from the library |
+| in the library, otherwise | none |
+| not in the library | `deleted`, keeping any `conflict_of` |
+
+Only `status` and `conflict_of` are touched, and `metadata.json` is rewritten only when one of them differs from what is on disk, so two runs in a row leave the working tree clean. A shortcut that reappears (undeleted, or synced back from another device) has its status cleared on the next run whether or not that run backs it up. A status change never rewrites `shortcut.json`, and signing is driven solely by `shortcut.json` changing, so it never re-signs a `.shortcut`.
+
+It returns one `StatusChange` per directory whose status differs from what was on disk before the run started, so a shortcut that this run both restored and backed up is still reported as restored. The run prints them, and the commit message adds a section for each kind:
+
+```
+chore(shortcuts): back up 2 shortcuts
+
+- Daily Note
+- Encode URL
+
+Renamed:
+- Foo → Bar
+
+Marked deleted (no longer in the library):
+- Old Helper
+
+Restored (back in the library):
+- Came Back
+
+Marked as sync-conflict copies:
+- _Get App from Input
+```
+
+A conflict copy backed up for the first time is not a change; existing backups of conflict copies are reported once, on the first run after upgrading. `sss build` has no library to compare against, so it renders whatever status the files already record.
+
+`sss export` reads only the library, so its zip contains conflict copies marked `conflict` (via `NewMetadata`) and never contains deleted shortcuts.
+
+### What the site receives
+
+`BuildSite` reloads each workflow from disk and copies the recorded status onto it, so every `render.Entry` carries it without `render.Entry` changing:
+
+- `entry.Workflow.Status` is a `shortcuts.Status`: `StatusActive` (`""`), `StatusConflict` or `StatusDeleted`.
+- `entry.Workflow.ConflictOf` is a `shortcuts.Original{WorkflowID, Name}`, the zero value when there is none. The original's own entry, when it is in the destination, is the one whose `Workflow.WorkflowID` matches.
 
 ## Signed file names carry the shortcut's name
 
@@ -60,11 +134,13 @@ Only path-hostile characters are replaced (`/`, `\`, `:`, control characters); s
 
 1. **Load** the shortcut's actions.
 2. **Scan** the actions and the import questions for credentials, *before writing anything*. A hit fails that shortcut with a redacted summary unless `--allow-secrets` is set. Guarding before the write means a run that would leak never touches the repo. See [secret-scanning.md](secret-scanning.md).
-3. **Write** `shortcut.json` first, because its `changed` result drives everything after it.
-4. **Write** `metadata.json` and `README.md`, each only when the contents differ, so an unchanged shortcut produces no filesystem churn.
-5. **Sign** — skipped entirely when the JSON did not change. See [archive.md](archive.md) for why this matters.
-6. **Regenerate the site** from the repository.
-7. **Stage and commit** the touched paths, unless `--no-commit`, `auto_commit = false`, or `--output` (which never commits; see below).
+3. **Move** a directory left under the shortcut's previous slug to its current one. See [above](#renamed-shortcuts-move-their-directory).
+4. **Write** `shortcut.json` first, because its `changed` result drives everything after it.
+5. **Write** `metadata.json` and `README.md`, each only when the contents differ, so an unchanged shortcut produces no filesystem churn.
+6. **Sign** — skipped entirely when the JSON did not change, after carrying over a signed file left under the shortcut's old name. See [archive.md](archive.md) for why this matters.
+7. **Record status**: remove stale duplicates, mark deleted shortcuts and clear reappeared ones, once per run. See [below](#shortcuts-that-are-no-longer-active).
+8. **Regenerate the site** from the repository.
+9. **Stage and commit** the touched and removed paths, unless `--no-commit`, `auto_commit = false`, or `--output` (which never commits; see below).
 
 Writes go through a temp file and a rename, so an interrupted run cannot leave a half-written `shortcut.json` in the repo.
 
@@ -111,7 +187,7 @@ sss -o ~/Desktop/shortcuts
 
 **The site is still built.** The layout is identical to a backup repository — `shortcuts/` plus `docs/` — so `DIR` can later be turned into one with `git init` and used with `--repo` without reshuffling anything, and the web reviews are browsable straight from the folder. `BuildSite` already reads from the destination directory rather than the library, so the index covers every shortcut previously backed up into `DIR`, not only this run's.
 
-**Re-running into the same directory is idempotent.** Nothing here bypasses the write-if-changed and signing-skip rules above; slugs still come from the whole library, never from what is already in `DIR`. A second run with no edits reports every shortcut `unchanged` and leaves every file's bytes and modification time untouched, including the `.shortcut` files.
+**Re-running into the same directory is idempotent.** Nothing here bypasses the write-if-changed and signing-skip rules above; slugs still come from the whole library, with directories already in `DIR` claimed by their workflow ids as described above, and deleted or conflict status is recorded there exactly as in a repository. A second run with no edits reports every shortcut `unchanged` and leaves every file's bytes and modification time untouched, including the `.shortcut` files.
 
 ### The overwrite guard and `--force`
 

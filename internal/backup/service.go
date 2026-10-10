@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -41,10 +42,17 @@ type Service struct {
 	opts Options
 
 	touched map[string]bool
+	removed map[string]bool
 	names   map[string]bool
+	renames []Rename
 
-	slugs    map[string]string
-	slugsErr error
+	all    []shortcuts.Shortcut
+	allErr error
+
+	repo    map[string]archive.Metadata
+	repoErr error
+
+	slugs map[string]string
 }
 
 func New(cfg *config.Config, lib *shortcuts.Library, opts Options) *Service {
@@ -53,6 +61,7 @@ func New(cfg *config.Config, lib *shortcuts.Library, opts Options) *Service {
 		lib:     lib,
 		opts:    opts,
 		touched: map[string]bool{},
+		removed: map[string]bool{},
 		names:   map[string]bool{},
 	}
 }
@@ -107,17 +116,39 @@ func shortID(workflowID string) string {
 	return cleaned
 }
 
-func (s *Service) slugFor(sc shortcuts.Shortcut) (string, error) {
-	if s.slugs == nil && s.slugsErr == nil {
-		all, err := s.lib.List()
-		if err != nil {
-			s.slugsErr = err
-		} else {
-			s.slugs = ResolveSlugs(all)
-		}
+func (s *Service) library() ([]shortcuts.Shortcut, error) {
+	if s.all == nil && s.allErr == nil {
+		s.all, s.allErr = s.lib.List()
 	}
-	if s.slugsErr != nil {
-		return "", s.slugsErr
+	return s.all, s.allErr
+}
+
+func (s *Service) repoSnapshot() (map[string]archive.Metadata, error) {
+	if s.repo == nil && s.repoErr == nil {
+		s.repo, s.repoErr = readRepoMetadata(s.cfg.RepoPath)
+	}
+	return s.repo, s.repoErr
+}
+
+func (s *Service) ensureSlugs() error {
+	if s.slugs != nil {
+		return nil
+	}
+	repo, err := s.repoSnapshot()
+	if err != nil {
+		return err
+	}
+	all, err := s.library()
+	if err != nil {
+		return err
+	}
+	s.slugs = ResolveSlugsAgainst(all, directoryOwners(repo))
+	return nil
+}
+
+func (s *Service) slugFor(sc shortcuts.Shortcut) (string, error) {
+	if err := s.ensureSlugs(); err != nil {
+		return "", err
 	}
 	if slug, ok := s.slugs[sc.WorkflowID]; ok {
 		return slug, nil
@@ -158,6 +189,11 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 
 	dir, err := s.ShortcutDir(sc)
 	if err != nil {
+		result.Outcome = tui.OutcomeFailed
+		result.Err = err
+		return result
+	}
+	if err := s.adoptPreviousDirs(sc, dir); err != nil {
 		result.Outcome = tui.OutcomeFailed
 		result.Err = err
 		return result
@@ -208,10 +244,24 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 
 	if s.cfg.IncludeSigned {
 		signedPath := filepath.Join(dir, signedFileName(sc.Name))
+		stale, err := carryOverSignedFile(dir, signedPath, changed)
+		if err != nil {
+			result.Outcome = tui.OutcomeFailed
+			result.Err = err
+			return result
+		}
 		if err := archive.Sign(changed, workflow, signedPath, s.cfg.SignMode); err != nil {
 			result.Outcome = tui.OutcomeFailed
 			result.Err = err
 			return result
+		}
+		for _, path := range stale {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				result.Outcome = tui.OutcomeFailed
+				result.Err = err
+				return result
+			}
+			s.removed[path] = true
 		}
 		s.track(signedPath, sc.Name)
 	}
@@ -298,6 +348,17 @@ func (s *Service) BuildSite() ([]string, error) {
 		}
 		written = append(written, target)
 	}
+	for _, r := range s.renames {
+		rel := path.Join(render.ShortcutsDirname, r.FromSlug+".html")
+		if _, kept := files[rel]; kept {
+			continue
+		}
+		page := filepath.Join(siteRoot, filepath.FromSlash(rel))
+		if err := os.Remove(page); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		s.removed[page] = true
+	}
 	return written, nil
 }
 
@@ -345,13 +406,8 @@ func loadFromRepo(dir string) (*shortcuts.Workflow, error) {
 		return nil, err
 	}
 
-	var meta archive.Metadata
-	metaRaw, err := os.ReadFile(filepath.Join(dir, MetadataFileName))
-	if err == nil {
-		if err := json.Unmarshal(metaRaw, &meta); err != nil {
-			return nil, err
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
+	meta, _, err := readMetadata(dir)
+	if err != nil {
 		return nil, err
 	}
 
@@ -361,6 +417,8 @@ func loadFromRepo(dir string) (*shortcuts.Workflow, error) {
 		w.Name = filepath.Base(dir)
 	}
 	w.WorkflowID = meta.WorkflowID
+	w.Status = meta.ShortcutStatus()
+	w.ConflictOf = meta.Original()
 	w.Icon = shortcuts.Icon{Glyph: meta.Glyph, Color: parseHexColor(meta.Color)}
 	w.Created = parseTime(meta.Created)
 	w.Modified = parseTime(meta.Modified)
@@ -391,7 +449,21 @@ func loadFromRepo(dir string) (*shortcuts.Workflow, error) {
 	return w, nil
 }
 
+func (s *Service) RemovedPaths() []string {
+	out := make([]string, 0, len(s.removed))
+	for p := range s.removed {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (s *Service) Stage(ctx context.Context, repo *gitrepo.Repo, extra []string) error {
+	if removed := s.RemovedPaths(); len(removed) > 0 {
+		if err := repo.Remove(ctx, removed...); err != nil {
+			return err
+		}
+	}
 	paths := append(s.TouchedPaths(), extra...)
 	if len(paths) == 0 {
 		return nil

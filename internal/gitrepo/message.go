@@ -44,6 +44,47 @@ func ShortcutBackupMessage(names ...string) CommitMessage {
 	}
 }
 
+type StatusChanges struct {
+	Renamed   []string
+	Deleted   []string
+	Restored  []string
+	Conflicts []string
+}
+
+func (c StatusChanges) empty() bool {
+	return len(sortedNames(c.Renamed))+len(sortedNames(c.Deleted))+len(sortedNames(c.Restored))+len(sortedNames(c.Conflicts)) == 0
+}
+
+func BackupMessage(backedUp []string, changes StatusChanges) CommitMessage {
+	if changes.empty() {
+		return ShortcutBackupMessage(backedUp...)
+	}
+	message := ShortcutBackupMessage(backedUp...)
+	if len(sortedNames(backedUp)) == 0 {
+		message = CommitMessage{Subject: "chore(shortcuts): update shortcut status"}
+	}
+
+	var sections []string
+	if message.Body != "" {
+		sections = append(sections, message.Body)
+	}
+	for _, group := range []struct {
+		heading string
+		names   []string
+	}{
+		{"Renamed:", changes.Renamed},
+		{"Marked deleted (no longer in the library):", changes.Deleted},
+		{"Restored (back in the library):", changes.Restored},
+		{"Marked as sync-conflict copies:", changes.Conflicts},
+	} {
+		if names := sortedNames(group.names); len(names) > 0 {
+			sections = append(sections, group.heading+"\n"+bulletList(names))
+		}
+	}
+	message.Body = strings.Join(sections, "\n\n")
+	return message
+}
+
 func singleShortcutMessage(name string) CommitMessage {
 	subject := "chore(shortcuts): back up " + singleLine(name)
 	shortened := truncateRunes(subject, maxSubjectRunes)

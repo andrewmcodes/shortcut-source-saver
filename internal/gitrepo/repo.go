@@ -208,6 +208,22 @@ func (r *Repo) Add(ctx context.Context, paths ...string) error {
 	return err
 }
 
+func (r *Repo) Remove(ctx context.Context, paths ...string) error {
+	relative := make([]string, 0, len(paths))
+	for _, path := range paths {
+		rel, err := r.relativePath(path)
+		if err != nil {
+			return err
+		}
+		relative = append(relative, rel)
+	}
+	if len(relative) == 0 {
+		return nil
+	}
+	_, err := r.git(ctx, append([]string{"rm", "-r", "--cached", "--ignore-unmatch", "--quiet", "--"}, relative...)...)
+	return err
+}
+
 func (r *Repo) relativePath(path string) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("cannot stage an empty path")
