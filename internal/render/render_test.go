@@ -668,7 +668,7 @@ func TestSiteMakesNoExternalRequests(t *testing.T) {
 	}
 	external := regexp.MustCompile(`(?i)(src|href)="(https?:)?//|@import|url\([^#]`)
 	for name, body := range site {
-		if match := external.Find(bytes.ReplaceAll(body, []byte(`href="https://andrewm.codes"`), nil)); match != nil {
+		if match := external.Find(bytes.ReplaceAll(bytes.ReplaceAll(body, []byte(`href="https://andrewm.codes"`), nil), []byte(`href="https://github.com/andrewmcodes/shortcut-source-saver"`), nil)); match != nil {
 			t.Errorf("%s references an external resource: %s", name, match)
 		}
 	}
@@ -1116,6 +1116,6 @@ func TestAppearanceControlsInFooter(t *testing.T) {
 		if strings.Contains(header, "data-appearance") {
 			t.Errorf("%s has navbar appearance controls", name)
 		}
-		assertContains(t, name, footer, `href="https://andrewm.codes">© Andrew Mason</a>`, `data-appearance="auto"`, `data-appearance="light"`, `data-appearance="dark"`)
+		assertContains(t, name, footer, `href="https://andrewm.codes">© 2026 Andrew Mason</a>`, `href="https://github.com/andrewmcodes/shortcut-source-saver">GitHub</a>`, `data-appearance="auto"`, `data-appearance="light"`, `data-appearance="dark"`)
 	}
 }

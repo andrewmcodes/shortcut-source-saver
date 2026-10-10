@@ -44,10 +44,10 @@ try {
 <div class="topbar-actions">
 {{if .Home}}<nav class="site-navigation" aria-label="Main navigation">
 <a class="topbar-link library-link" href="{{.Home}}"{{if not .OnMap}} aria-current="{{if .OnIndex}}page{{else}}location{{end}}"{{end}}>{{template "icon-layers"}}<span>All shortcuts</span></a>{{end}}
-{{if .OnDetail}}<button type="button" class="icon-button details-toggle" id="details-toggle" aria-label="Show details" title="Show details" aria-controls="details-drawer" aria-expanded="false" hidden>{{template "icon-panel"}}</button>{{end}}
 {{- with .MapHref}}
 <a class="topbar-link" href="{{.}}"{{if $.OnMap}} aria-current="page"{{end}}>{{template "icon-graph"}}<span>Dependency map</span></a>
 {{- end}}
+{{if .OnDetail}}<button type="button" class="icon-button details-toggle" id="details-toggle" aria-label="Show details" title="Show details" aria-controls="details-drawer" aria-expanded="false" hidden>{{template "icon-panel"}}</button>{{end}}
 {{if .Home}}</nav>{{end}}
 
 </div>
@@ -56,7 +56,7 @@ try {
 
 {{define "site-footer"}}
 <footer class="site-footer">
-<a class="copyright" href="https://andrewm.codes">© Andrew Mason</a>
+<div class="footer-links"><a class="copyright" href="https://andrewm.codes">© 2026 Andrew Mason</a><a href="https://github.com/andrewmcodes/shortcut-source-saver">GitHub</a></div>
 <div class="appearance-control" role="group" aria-label="Appearance">
 <button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true">{{template "icon-system"}}</button>
 <button type="button" data-appearance="light" aria-label="Light appearance" title="Light appearance" aria-pressed="false">{{template "icon-theme"}}</button>

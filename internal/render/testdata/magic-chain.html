@@ -369,6 +369,9 @@
 [hidden] { display: none !important; }
 
 body {
+	display: flex;
+	flex-direction: column;
+	min-height: 100dvh;
 	margin: 0;
 	padding-bottom: env(safe-area-inset-bottom);
 	background: var(--bg);
@@ -417,8 +420,7 @@ h1, h2, h3, p { margin: 0; }
 	gap: 8px;
 	min-width: 0;
 	font-size: 16px;
-	font-weight: 650;
-	letter-spacing: -0.3px;
+	font-weight: 500;
 	color: var(--text);
 }
 .brand:hover { color: var(--text); }
@@ -453,7 +455,7 @@ h1, h2, h3, p { margin: 0; }
 .site-navigation { flex: 1; }
 .site-navigation > :nth-child(2), .topbar-actions > .details-toggle { margin-left: auto; }
 .appearance-control { margin-left: auto; }
-.appearance-control { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 24px; }
+.appearance-control { display: flex; align-items: center; gap: 0; padding: 0; border: 1px solid var(--line); border-radius: 24px; }
 .appearance-control button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
 .appearance-control button:hover { color: var(--text); }
 .appearance-control button[aria-pressed="true"] { background: var(--side); color: var(--text); }
@@ -493,6 +495,8 @@ h1, h2, h3, p { margin: 0; }
 .btn:hover { background: var(--side); }
 
 main {
+	width: 100%;
+	flex: 1;
 	max-width: 1280px;
 	margin: 0 auto;
 	padding: 24px 32px 40px;
@@ -500,8 +504,8 @@ main {
 }
 
 .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; max-width: 1280px; margin: 0 auto; padding: 20px 32px; border-top: 1px solid var(--line); }
-.copyright { font-size: 13px; color: var(--muted); }
-.copyright:hover { color: var(--text); }
+.footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.footer-links a:hover { color: var(--text); }
 
 .page-heading {
 	display: flex;
@@ -511,7 +515,7 @@ main {
 	gap: 8px 16px;
 	margin-bottom: 16px;
 }
-.page-heading h1 { font-size: 30px; line-height: 1.2; font-weight: 700; letter-spacing: -0.9px; }
+.page-heading h1 { font-size: 30px; line-height: 1.2; font-weight: 700; }
 
 .deleted-badge {
 	display: inline-flex;
@@ -603,7 +607,6 @@ main {
 	gap: 9px;
 	font-size: 27px;
 	font-weight: 600;
-	letter-spacing: -0.5px;
 	line-height: 1.3;
 	font-variant-numeric: tabular-nums;
 }
@@ -622,6 +625,7 @@ main {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	height: 44px;
 	min-height: 44px;
 	padding: 8px 12px;
 	border: 1px solid var(--line);
@@ -639,6 +643,8 @@ main {
 	background: none;
 	color: var(--text);
 	font-size: 16px;
+	line-height: 20px;
+	padding: 0;
 }
 .search input::-webkit-search-cancel-button { display: none; }
 
@@ -759,7 +765,6 @@ kbd {
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 1.3;
-	letter-spacing: -0.3px;
 	overflow-wrap: anywhere;
 }
 
@@ -834,9 +839,8 @@ kbd {
 .detail-heading h1 {
 	margin: 0;
 	font-size: 28px;
-	font-weight: 650;
+	font-weight: 500;
 	line-height: 1.2;
-	letter-spacing: -0.7px;
 	overflow-wrap: anywhere;
 }
 
@@ -858,6 +862,12 @@ kbd {
 .drawer-ready.details-open .review-main, .drawer-ready.details-open .site-footer { width: calc(100% - 320px); margin-left: 0; }
 .drawer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; margin-bottom: 8px; position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 1px solid var(--line); }
 .drawer-heading h2 { font-size: 17px; }
+#details-close { position: relative; background: transparent; }
+#details-close::before { content: ""; position: absolute; inset: 6px; border-radius: var(--control-radius); }
+#details-close:hover::before { background: var(--side); }
+#details-close > svg { position: relative; }
+#details-close:focus-visible { outline: none; }
+#details-close:focus-visible::before { outline: 3px solid var(--cyan-8); outline-offset: 3px; }
 .drawer-modal { overflow: hidden; }
 .details-drawer::backdrop { background: #0008; }
 
@@ -868,7 +878,8 @@ kbd {
 	gap: 12px;
 	padding-bottom: 10px;
 }
-.section-heading h2 { font-size: 18px; letter-spacing: -0.4px; }
+.section-heading h2 { font-size: 18px; }
+.actions .section-heading h2 { letter-spacing: -0.4px; }
 .section-heading > span { font-size: 12px; color: var(--muted); }
 
 .meta-panel { padding: 0; }
@@ -930,7 +941,7 @@ kbd {
 .status-banner .text-link { display: inline; min-height: 0; font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 .relations { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-.relations h3 { margin: 0 0 4px; font-size: 15px; font-weight: 650; letter-spacing: -0.2px; }
+.relations h3 { margin: 0 0 4px; font-size: 15px; font-weight: 500; }
 .relations h3 span { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--muted); }
 .relations-empty { font-size: 13px; color: var(--muted); }
 
@@ -1038,7 +1049,7 @@ kbd {
 	gap: 6px;
 	margin-bottom: 10px;
 	font-size: 11px;
-	font-weight: 650;
+	font-weight: 500;
 	letter-spacing: 1.2px;
 	text-transform: uppercase;
 	color: var(--muted);
@@ -1107,7 +1118,7 @@ a.focus-node:hover { color: var(--text); border-color: var(--indigo-8); backgrou
 a.focus-current:hover { background: var(--bg); border-color: var(--accent); }
 .focus-current .shortcut-icon { width: 50px; height: 50px; border-radius: 14px; }
 .focus-current .shortcut-icon svg { width: 25px; height: 25px; }
-.focus-current .focus-text strong { font-size: 18px; font-weight: 650; letter-spacing: -0.3px; white-space: normal; overflow-wrap: anywhere; }
+.focus-current .focus-text strong { font-size: 18px; font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
 .focus-current .focus-text small { font-size: 13px; }
 .focus-open {
 	grid-column: 1 / -1;
@@ -1166,7 +1177,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 .rank-row.current .rank-link:hover { background: transparent; }
 .rank-details > summary { padding: 0 14px 12px 62px; font-size: 12px; font-weight: 550; color: var(--accent); cursor: pointer; }
 .rank-relations { display: grid; gap: 10px; padding: 0 14px 14px 62px; font-size: 13px; }
-.rank-relations h3 { font-size: 11px; font-weight: 650; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+.rank-relations h3 { font-size: 11px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
 .rank-relations ul { margin: 2px 0 0; padding-left: 18px; }
 .rank-relations p { color: var(--muted); }
 .rank-relations a { color: var(--accent); }
@@ -1178,7 +1189,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 
 @media (min-width: 651px) and (hover: hover) and (pointer: fine) {
 	.search, .library-toolbar select, .output-filter > summary, .btn { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
-	.library-toolbar select, .output-filter > summary { height: 36px; line-height: 22px; }
+	.search, .library-toolbar select, .output-filter > summary { height: 36px; line-height: 22px; }
 }
 
 @media (max-width: 1150px) {
@@ -1258,15 +1269,15 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	.card-status-label { display: inline; }
 	.shortcut-card .shortcut-icon { width: 40px; height: 40px; border-radius: 11px; }
 	.shortcut-card .shortcut-icon svg { width: 21px; height: 21px; }
-	.shortcut-card h3 { grid-column: 2; margin: 0; font-size: 16px; font-weight: 550; line-height: 1.4; letter-spacing: -0.15px; }
+	.shortcut-card h3 { grid-column: 2; margin: 0; font-size: 16px; font-weight: 550; line-height: 1.4; }
 	.card-meta { grid-column: 2; justify-content: flex-start; gap: 12px; margin: 0; padding: 0; border: 0; }
 	.card-warning { grid-column: 2; margin-top: 2px; }
-	.topbar-link { position: relative; width: 44px; height: 44px; padding: 0; justify-content: center; }
-	.topbar-link:hover, .topbar-link[aria-current] { background: transparent; }
-	.topbar-link::before { content: ""; position: absolute; inset: 6px; border-radius: 8px; }
-	.topbar-link:hover::before { background: var(--side); }
+	.topbar-link, .details-toggle { position: relative; width: 44px; height: 44px; padding: 0; justify-content: center; }
+	.topbar-link:hover, .topbar-link[aria-current], .details-toggle:hover, .details-toggle[aria-expanded="true"] { background: transparent; }
+	.topbar-link::before, .details-toggle::before { content: ""; position: absolute; inset: 6px; border-radius: 8px; }
+	.topbar-link:hover::before, .details-toggle:hover::before, .details-toggle[aria-expanded="true"]::before { background: var(--side); }
 	.topbar-link[aria-current="page"]::before { background: var(--accent-bg); }
-	.topbar-link > svg { position: relative; }
+	.topbar-link > svg, .details-toggle > svg { position: relative; }
 	.topbar-link.library-link { display: none; }
 	.topbar-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 	.library-footer { flex-direction: column; align-items: flex-start; }
@@ -1285,7 +1296,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	.rank-row:last-child { border-bottom: 0; }
 	.rank-row.current { border-color: var(--line); }
 	.rank-link { border-radius: 0; }
-	.detail-heading h1 { font-size: 24px; letter-spacing: -0.8px; }
+	.detail-heading h1 { font-size: 24px; }
 	.detail-meta { gap: 3px 9px; padding-top: 6px; font-size: 11px; }
 	.topbar-actions { gap: 4px; }
 	.detail-meta > span:not(:first-child) { padding-left: 9px; }
@@ -1299,7 +1310,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 :is(button, input, select, summary, .btn, .topbar-link, .search, .appearance-control, .library-summary, .focus-option):not(.actions *) {
 	border-radius: var(--control-radius);
 }
-.topbar-link::before { border-radius: var(--control-radius); }
+.topbar-link::before, .details-toggle::before { border-radius: var(--control-radius); }
 input[type="checkbox"]:not(.actions *) {
 	-webkit-appearance: none;
 	appearance: none;
@@ -1315,6 +1326,9 @@ input[type="checkbox"]:not(.actions *) {
 input[type="checkbox"]:not(.actions *):checked { background: var(--solid); border-color: var(--solid); }
 input[type="checkbox"]:not(.actions *)::before { content: ""; width: 8px; height: 4px; border-left: 2px solid white; border-bottom: 2px solid white; transform: translateY(-1px) rotate(-45deg); visibility: hidden; }
 input[type="checkbox"]:not(.actions *):checked::before { visibility: visible; }
+
+.topbar .topbar-link:hover, .topbar .icon-button:hover { background: transparent; color: light-dark(#1d1d1f, #ffffff); }
+.topbar .topbar-link:hover::before, .topbar .icon-button:hover::before { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
@@ -1737,7 +1751,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </main>
 
 <footer class="site-footer">
-<a class="copyright" href="https://andrewm.codes">© Andrew Mason</a>
+<div class="footer-links"><a class="copyright" href="https://andrewm.codes">© 2026 Andrew Mason</a><a href="https://github.com/andrewmcodes/shortcut-source-saver">GitHub</a></div>
 <div class="appearance-control" role="group" aria-label="Appearance">
 <button type="button" data-appearance="auto" aria-label="System appearance" title="System appearance" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg></button>
 <button type="button" data-appearance="light" aria-label="Light appearance" title="Light appearance" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"></path></svg></button>
