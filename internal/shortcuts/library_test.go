@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -140,5 +142,45 @@ func TestCoreDataTimeConvertsFromTheReferenceEpoch(t *testing.T) {
 	}
 	if zero := coreDataTime(sql.NullFloat64{}); !zero.IsZero() {
 		t.Errorf("NULL timestamp = %s, want the zero time", zero)
+	}
+}
+
+func fixtureLibrary(t *testing.T, workflowID any) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "Shortcuts.sqlite")
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`CREATE TABLE ZSHORTCUT (Z_PK INTEGER PRIMARY KEY, ZNAME TEXT, ZWORKFLOWID TEXT, ZACTIONS INTEGER,
+			ZICON INTEGER, ZTOMBSTONED INTEGER, ZACTIONCOUNT INTEGER, ZCREATIONDATE REAL,
+			ZMODIFICATIONDATE REAL, ZHIDDENFROMLIBRARYANDSYNC INTEGER)`,
+		`CREATE TABLE ZSHORTCUTACTIONS (Z_PK INTEGER PRIMARY KEY, ZDATA BLOB)`,
+		`CREATE TABLE ZSHORTCUTICON (Z_PK INTEGER PRIMARY KEY, ZGLYPHNUMBER INTEGER, ZBACKGROUNDCOLORVALUE INTEGER)`,
+		`INSERT INTO ZSHORTCUTACTIONS (Z_PK, ZDATA) VALUES (1, NULL)`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO ZSHORTCUT (Z_PK, ZNAME, ZWORKFLOWID, ZACTIONS) VALUES (1, 'Orphan', ?, 1)`,
+		workflowID); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestListNamesAShortcutWithNoWorkflowIdentifier(t *testing.T) {
+	lib, err := Open(fixtureLibrary(t, nil))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer lib.Close()
+
+	_, err = lib.List()
+	if err == nil || !strings.Contains(err.Error(), `"Orphan"`) {
+		t.Fatalf("List error = %v, want one naming the shortcut", err)
 	}
 }

@@ -178,15 +178,20 @@ func (l *Library) List() ([]Shortcut, error) {
 	for rows.Next() {
 		var (
 			s                 Shortcut
+			workflowID        sql.NullString
 			created, modified sql.NullFloat64
 			count             sql.NullInt64
 			color             int64
 			hidden            int64
 		)
-		if err := rows.Scan(&s.pk, &s.Name, &s.WorkflowID, &count, &created, &modified,
+		if err := rows.Scan(&s.pk, &s.Name, &workflowID, &count, &created, &modified,
 			&s.Icon.Glyph, &color, &hidden); err != nil {
 			return nil, err
 		}
+		if !workflowID.Valid || workflowID.String == "" {
+			return nil, fmt.Errorf("shortcut %q has no workflow identifier, so it cannot be backed up", s.Name)
+		}
+		s.WorkflowID = workflowID.String
 		s.ActionCount = int(count.Int64)
 		s.Created = coreDataTime(created)
 		s.Modified = coreDataTime(modified)
