@@ -625,6 +625,36 @@ func TestSite(t *testing.T) {
 	}
 }
 
+func TestSiteIndexMarksFlaggedShortcuts(t *testing.T) {
+	site, err := Site([]Entry{
+		{Workflow: fixtureNamed(t, "linear")},
+		{Workflow: fixtureNamed(t, "unbalanced")},
+	}, SiteOptions{})
+	if err != nil {
+		t.Fatalf("Site: %v", err)
+	}
+	index := string(site[IndexPath])
+	if n := strings.Count(index, " data-flagged"); n != 1 {
+		t.Errorf("index has %d flagged cards, want 1", n)
+	}
+	if !strings.Contains(index, `<option value="flagged" data-label="Flagged">Flagged (1)</option>`) {
+		t.Error("the flagged filter should count the one corrupted shortcut")
+	}
+}
+
+func TestSiteMakesNoExternalRequests(t *testing.T) {
+	site, err := Site([]Entry{{Workflow: fixtureNamed(t, "linear")}}, SiteOptions{})
+	if err != nil {
+		t.Fatalf("Site: %v", err)
+	}
+	external := regexp.MustCompile(`(?i)(src|href)="(https?:)?//|@import|url\(`)
+	for name, body := range site {
+		if match := external.Find(body); match != nil {
+			t.Errorf("%s references an external resource: %s", name, match)
+		}
+	}
+}
+
 func TestSiteRelativeLinksAndSlugCollisions(t *testing.T) {
 	first := workflow("Same Name", action("is.workflow.actions.nothing", nil))
 	second := workflow("Same Name!", action("is.workflow.actions.nothing", nil))
