@@ -110,6 +110,18 @@ func fullID(workflowID string) string {
 	return cleaned
 }
 
+func (s *Service) previousSlug(slug string) string {
+	if _, ok := s.repo[slug]; ok {
+		return slug
+	}
+	for _, r := range s.renames {
+		if r.ToSlug == slug {
+			return r.FromSlug
+		}
+	}
+	return slug
+}
+
 func (s *Service) ReconcileStatus() ([]StatusChange, error) {
 	if s.lib == nil {
 		return nil, nil
@@ -122,14 +134,16 @@ func (s *Service) ReconcileStatus() ([]StatusChange, error) {
 	if err != nil {
 		return nil, err
 	}
-	current, err := readRepoMetadata(s.cfg.RepoPath)
-	if err != nil {
-		return nil, err
-	}
-
 	live := make(map[string]shortcuts.Shortcut, len(all))
 	for _, sc := range all {
 		live[sc.WorkflowID] = sc
+	}
+	if err := s.removeStaleDuplicates(live); err != nil {
+		return nil, err
+	}
+	current, err := readRepoMetadata(s.cfg.RepoPath)
+	if err != nil {
+		return nil, err
 	}
 
 	var changes []StatusChange
@@ -157,7 +171,7 @@ func (s *Service) ReconcileStatus() ([]StatusChange, error) {
 		}
 
 		previous := meta.ShortcutStatus()
-		if old, ok := before[slug]; ok {
+		if old, ok := before[s.previousSlug(slug)]; ok {
 			previous = old.ShortcutStatus()
 		}
 		if previous != status {

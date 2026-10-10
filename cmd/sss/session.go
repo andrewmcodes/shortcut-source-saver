@@ -169,6 +169,9 @@ func (s *session) finish(ctx context.Context, results []tui.Result) error {
 		return fmt.Errorf("recording shortcut status: %w", err)
 	}
 	statusSummary := summarizeStatusChanges(changes)
+	for _, r := range s.service.Renames() {
+		statusSummary.Renamed = append(statusSummary.Renamed, r.String())
+	}
 	printStatusChanges(statusSummary)
 
 	sitePaths, err := s.service.BuildSite()
@@ -248,6 +251,7 @@ func printStatusChanges(summary gitrepo.StatusChanges) {
 		label string
 		names []string
 	}{
+		{"renamed", summary.Renamed},
 		{"marked deleted", summary.Deleted},
 		{"restored", summary.Restored},
 		{"marked conflict", summary.Conflicts},
