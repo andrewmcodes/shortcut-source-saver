@@ -86,6 +86,7 @@ shortcuts/
     README.md            # generated documentation
 docs/
   index.html             # links to every web review
+  dependencies.html      # which shortcuts run which
   shortcuts/
     my-shortcut.html     # action-by-action review
   assets/style.css
@@ -131,7 +132,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 
 `sss init` scaffolds a GitHub Actions workflow in your backup repo that publishes `docs/` to GitHub Pages. Push the repo, then enable **Settings → Pages → GitHub Actions**.
 
-The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The header lists what the shortcut accepts and outputs and any questions it asks on import.
+The index lists every shortcut and links to its review. Each review renders the shortcut action by action: control-flow blocks nest visually, magic variables link back to the action that produced them, and large text blocks collapse. The details panel lists what the shortcut accepts and outputs, any questions it asks on import, which shortcuts it runs and which run it. Run Shortcut actions are matched to shortcuts in the backup by workflow identifier, then by name, and the dependency map draws the result, flagging calls to shortcuts that are not in the backup.
 
 ## Secrets
 

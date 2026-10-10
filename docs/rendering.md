@@ -10,7 +10,7 @@ The structure of the web review — the collapsible per-action buttons, the colo
 | --- | --- |
 | `WebReview(w)` / `WebReviewWithOptions(w, opts)` | one self-contained HTML page (CSS inlined, no external requests, no images) |
 | `ShortcutREADME(w)` / `ShortcutREADMEWithOptions(w, opts)` | Markdown for `shortcuts/<slug>/README.md` |
-| `Site(entries, opts)` | `map[relative path][]byte` — `index.html`, `shortcuts/<slug>.html` per entry, `assets/style.css` |
+| `Site(entries, opts)` | `map[relative path][]byte` — `index.html`, `dependencies.html`, `shortcuts/<slug>.html` per entry, `assets/style.css` |
 | `Stylesheet()` | the concatenated stylesheet (`assets/radix-colors.css`, `assets/site.css`, `assets/actions.css`, in that order), for callers that write it themselves |
 
 `Options.ExpandAll` disables the collapse-large-content heuristic. `Options.SiteURL`, `Options.SiteRoot`, and `Options.Slug` decide the README's review link (see [The README's review link](#the-readmes-review-link)). `Options.ShortcutFile` names the importable binary the README links to (default `shortcut.shortcut`), because the caller chooses that name. `SiteOptions.BaseURL` is the prefix for a GitHub Pages *project* site (`/repo-name`); every internal link is built through it, and when it is empty the site is linked relatively (`../assets/style.css`) so it also works from a `file://` checkout.
@@ -190,7 +190,7 @@ The site is returned as a map of relative path to bytes rather than written dire
 
 ## The site design
 
-The look of the site — palette, type, spacing, the topbar, the card library and the shortcut page — follows the Shortcut Atlas mockup. That mockup is a browser-only app that imports exports, draws a dependency map and shares links; only the visual design and the browsing affordances that work on a static, generated page were ported.
+The look of the site — palette, type, spacing, the topbar, the card library, the shortcut page and the dependency map — follows the Shortcut Atlas mockup. That mockup is a browser-only app that imports exports, draws a dependency map and shares links; only the visual design and the browsing affordances that work on a static, generated page were ported. How shortcuts are linked to each other is described in [Run Shortcut and the dependency map](#run-shortcut-and-the-dependency-map).
 
 ### Colour and theming
 
@@ -204,9 +204,11 @@ Mixing does not rescue a black icon: in dark mode a black tile on a near-black s
 
 ### The index
 
-A heading with the site title and a `Last change` badge (the newest modification date across the library), then a collapsible Library overview with the shortcut, action and flagged counts. Below it, a toolbar with search, a filter (all shortcuts or only flagged ones) and a sort (name, most actions, recently modified), then the cards. A card shows the colour tile, the minimum iOS version when known, the name, the action count and the modification date, and a warning line when the review flags the shortcut — "flagged" means exactly what the review's notice means: corrupted control flow or a malformed value.
+A heading with the site title and a `Last change` badge (the newest modification date across the library), then a collapsible Library overview with the shortcut, action, flagged and connected counts. Below it, a toolbar with search, a filter (all shortcuts, flagged, connected, standalone, or with a missing reference) and a sort (name, most actions, recently modified), then the cards, and a footer line linking the dependency map. A card shows the colour tile, the minimum iOS version when known, the name, the action count, the modification date, and how it is connected — `N calls` when it runs other shortcuts, `N callers` when it only is run, `Standalone` otherwise — plus a warning line when the review flags the shortcut and another when it runs a shortcut that is not in the backup. "Flagged" means exactly what the review's notice means: corrupted control flow or a malformed value; a missing reference is a warning, not a flag, because the shortcut itself is intact.
 
-The toolbar is `hidden` in the markup and revealed by the script, so without JavaScript the page is simply the full list in name order. The script filters by matching the search text against each card's name and toggling `hidden`, and sorts by reordering the existing cards using `data-actions` and `data-modified` (RFC 3339, so it sorts as a string); "name" restores the order the server wrote. `/` focuses the search box. At phone width the cards collapse into a single bordered list of rows, as in the mockup.
+The toolbar is `hidden` in the markup and revealed by the script, so without JavaScript the page is simply the full list in name order. The script filters by matching the search text against each card's name and toggling `hidden`; each filter option carries the CSS selector its cards must match in `data-match` (`[data-flagged]`, `[data-connected]`, `:not([data-connected])`, `[data-missing]`), so a new filter is one attribute on the card and one option, not new script. It sorts by reordering the existing cards using `data-actions` and `data-modified` (RFC 3339, so it sorts as a string); "name" restores the order the server wrote. `/` focuses the search box. At phone width the cards collapse into a single bordered list of rows, as in the mockup.
+
+Every page of the site carries a `Dependency map` link in the topbar; below 620px its label is visually hidden but stays its accessible name.
 
 ### The shortcut page
 
@@ -216,13 +218,73 @@ Each action is a card. The step number moved out of the title text into a `step`
 
 ### Deliberately left out
 
-- **The sidebar.** Its entries in the mockup — collections, the dependency map — have no counterpart in a backup, and a one-link sidebar would take width the action titles need.
-- **Import, share and download dialogs, and the dependency map.** They need user uploads or relationships the renderer does not compute. Resolving Run Shortcut actions across the library would make a map possible, but it is a feature, not a restyle.
+- **The sidebar.** Its entries in the mockup — collections and the dependency map — are a topbar link here; collections have no counterpart in a backup, and a sidebar would take width the action titles need.
+- **Import, share and download dialogs.** They need user uploads or a server.
 - **App icons.** The mockup looks artwork up from the App Store at view time, which would be an external request.
-- **Library-wide numbers on shortcut pages.** Putting the library count or a "called by" list on every page would make each new shortcut rewrite every page in the site, and a git diff is supposed to mean the shortcut changed.
+- **Library-wide numbers on shortcut pages.** Putting the library count on every page would make each new shortcut rewrite every page in the site, and a git diff is supposed to mean the shortcut changed. Runs and Called by are on the page because they only change when a direct neighbour does; see [What a change rewrites](#what-a-change-rewrites).
+- **The mockup's change-impact panel and zoom controls.** Transitive "depends on this" lists would make a page change whenever anything upstream changes, and the map's groups are sized to scroll rather than zoom.
+
+## Run Shortcut and the dependency map
+
+`deps.go` finds every `is.workflow.actions.runworkflow` action in the library and decides which shortcut it runs; `graph.go` lays the result out as the map. Both work on the entries `Site` already receives — the backup passes the whole repository, not just the shortcuts of the current run — so nothing re-reads the Shortcuts database and `internal/shortcuts` stays the only package that knows Apple's schema. A standalone `WebReview` has no library, so it renders Run Shortcut exactly as before and has no Runs or Called by sections.
+
+### Reading the target
+
+A real library stores the target in three shapes, sometimes in one action:
+
+| shape | example | read as |
+| --- | --- | --- |
+| `WFWorkflow` descriptor | `{"workflowIdentifier": "D93F…", "workflowName": "get_apple_app", "isSelf": false}` | identifier, name, and whether it is the shortcut itself |
+| `WFWorkflowName` string | `"get_apple_app"`, the older form, kept alongside the descriptor | the name, when the descriptor has none |
+| a variable in either key | `WFWorkflow` and `WFWorkflowName` both a `WFTextTokenAttachment` | dynamic: the target is chosen at run time |
+
+`isSelf` is authoritative: a shortcut imported from someone else keeps the author's identifier in its self-calls, so the stored identifier of a self-call usually matches nothing.
+
+### Resolution order
+
+1. A variable target is **dynamic** and is never guessed at.
+2. `isSelf` is **self**.
+3. The identifier, compared case-insensitively against every entry's `WorkflowID`: exactly one match is **linked** (or **self**, if it is the caller). If several entries share the identifier, the one whose name also matches wins.
+4. The name, compared exactly: exactly one match is **matched by name** (or **self**). A shortcut that is deleted and re-imported gets a new identifier while its callers keep the old one, so name fallback is what keeps those calls linked; on the real library it resolves 11 of 115 calls, all from the two copies of Shortcut Source Tool to a Shortcut Source Helper whose stored identifier is not in the library.
+5. Otherwise the call is a **missing reference** — including when several shortcuts share the name, because picking one would be a guess. "Missing" means not in this backup, which also covers a shortcut excluded by the config.
+
+On the author's library of 217 shortcuts the 115 Run Shortcut actions resolve as 94 linked, 11 by name, 8 self, 1 missing and 1 dynamic.
+
+### On the shortcut page
+
+The Details panel gains a **Runs** section, one entry per distinct target in order of first use, with the action numbers that call it as magic links, and a **Called by** section listing every other shortcut that runs this one, sorted by name. Linked targets show the tile and link to the page; a target whose stored name differs from its current one says what it was recorded as; a name match says the stored identifier is not in the backup; missing targets are amber with the identifier in monospace; self and dynamic calls are plain rows. An `Open dependency map` button links to `dependencies.html#map-<slug>` for a connected shortcut.
+
+The Run Shortcut action itself keeps the reference's title, `Run Shortcut [name]`, but the name becomes a link to the target's page, amber when it is missing, and the raw `WFWorkflow` dictionary row is replaced by a `Shortcut` row saying how it was resolved. The link is a `magic` span with `data-href` instead of `data-target`, because the title is inside the action's `<button>` and an `<a>` there would be invalid nested interactive content; the page script follows `data-href` on click, Enter or Space (Cmd/Ctrl opens a new tab), so it has the same keyboard behaviour as every other magic link. `html/template` treats `data-href` as a URL attribute and sanitises it.
+
+### The map page
+
+`dependencies.html` draws only connected shortcuts — those that run or are run by another — plus one amber node per missing target (shared by every caller that misses the same identifier and name) and one dotted "Chosen at run time" node per shortcut with dynamic calls. They are split into connected groups, largest first, and each group is its own inline SVG, laid out left to right in the mockup's style:
+
+1. Cycles are condensed with Tarjan's algorithm, so recursion and mutual calls cannot break layering, and the members are marked `recursive`.
+2. Each node's column is the length of its longest call chain *downwards*, counted from the right: helpers that call nothing share the last column and a shortcut sits immediately left of the deepest thing it runs. Counting from the left instead puts a shared helper as far right as its longest caller's chain, so every shallow caller needs a long edge to reach it; on the real library that sent most of the largest group's edges over the top of it.
+3. An edge that still spans several columns gets a virtual node in each column it crosses, so it is ordered with the real nodes and passes between them instead of over them.
+4. Eight alternating barycentre sweeps order each column by the relative positions of its neighbours, a cheap crossing reduction that needs no layout library.
+5. Edges are orthogonal paths with lanes spread across the column gap and ports spread along the node edge; self-calls are a small loop under the node.
+
+Small groups are centred vertically like the mockup; groups taller than six rows are top-aligned, so a phone opens on their callers rather than on empty space. Groups pack side by side with flex-wrap, and each scrolls horizontally inside its own card when it is wider than the screen — at 400px that is every group, which is why the legend row has a "Skip to the relationship list" link and why the relationship list below the map repeats every connection as text chips.
+
+Nodes are `<a>` elements inside the SVG, so they are in the tab order with an `aria-label` of name and subtitle; hovering or focusing one traces its edges and neighbours and dims the rest. Missing and dynamic nodes are `role="img"` groups, not links. A `Focus on` select (hidden until the script runs) shows only the group containing the chosen shortcut, traces it, filters the relationship list to its neighbours, and announces the change through a live region; the choice is mirrored in the URL hash, which is how the shortcut pages deep-link to their place on the map. The arrowhead marker is defined once in a zero-size SVG and filled with `context-stroke`, so traced edges recolour their arrows. Everything is generated in Go and escaped by `html/template` — there is no embedded JSON and no library.
+
+### What a change rewrites
+
+Identical input still produces byte-identical output, and the order of the entries does not matter: map nodes, edges, placeholder keys and groups are all sorted by name and slug before layout, which a test checks by reversing the entries. What a change to one shortcut rewrites:
+
+- **Its own page**, as before.
+- **The pages of its direct callers and callees**, when the change touches what they show of it: its name, slug, colour, or whether it still runs them. A caller's page also changes when the caller's own Run Shortcut actions move, because Runs lists action numbers.
+- **The index and the map**, which are library-wide by design.
+- **Nothing else.** Adding a shortcut that nobody runs and that runs nothing rewrites only the index, the map and its own page, which a test checks against the fixtures and which a run against the real library confirmed.
+
+The one indirect effect is name fallback: a new shortcut that shares the name of a target matched by name makes that name ambiguous, so the caller's page changes to show a missing reference. That is the honest outcome — the backup can no longer tell which shortcut is meant — and it only happens to calls that had already lost their identifier.
 
 ## Tests
 
 `render_test.go` drives fifteen hand-built workflows through all three outputs and compares against golden files in `testdata/`; run `go test ./internal/render/ -update` to regenerate them, and read the diff as the review it is. The fixtures cover a linear shortcut (with a dictionary and a slot default), nested `If`/`Otherwise`/`End If` including the multi-condition and "is between" forms, a `Repeat` containing a `Menu` containing an `If` (which is what exercises all three depth cues), unbalanced blocks in all three broken shapes, a magic-variable chain with aggrandizements and a dangling output, a token string whose attachment offsets sort differently as numbers than as strings, uncatalogued Apple and third-party actions, text made of `<script>`, quotes, zero-width, non-breaking and control characters, and variables buried in one and two layers of serialization wrapper. Six more are adapted from the examples in the shortcuts-generator reference (see [reference-notes.md](reference-notes.md)): a Find Photos filter table covering every operand shape, a menu with `WFMenuItems`, a Repeat with Each using Repeat Item/Index and the built-in variable sources, string-typed modes and conditions, a token string whose attachment offset is off by one, and a workflow with import questions and input/output classes.
 
 Beyond the goldens the tests assert what the goldens cannot: that every output is byte-identical across two runs, that every opened tag closes in LIFO order (a hand-rolled scan, to avoid taking a dependency on `golang.org/x/net/html`), that shortcut text cannot introduce a tag, that no README contains an HTML-only `\u…` escape, that the token-string splice order follows the numeric offsets, that `ExpandAll`, base URLs, relative links and slug collisions behave, that the index marks and counts exactly the shortcuts the reviews flag, and that no generated file references an external resource.
+
+`deps_test.go` covers the dependency features with one three-shortcut library whose caller runs a shortcut by identifier, by a stale identifier that falls back to the name, itself, a missing shortcut, a variable target, a bare `WFWorkflowName`, and a stale name: it asserts each resolution, that an identifier matching the caller is a self-call, that an ambiguous name is missing, the Runs and Called by sections and index cards that result, that adding an unrelated shortcut leaves every shortcut page byte-identical, that the site does not depend on the order of the entries, and that map nodes are focusable, labelled links and hostile names cannot add a tag. `site-map.html` and `site-calls-page.html` are its goldens.
