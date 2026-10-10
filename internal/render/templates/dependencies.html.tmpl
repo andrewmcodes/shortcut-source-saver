@@ -9,72 +9,320 @@
 {{- template "theme-boot"}}
 
 document.addEventListener('DOMContentLoaded', function () {
-	const focus = document.getElementById('focus');
-	const status = document.getElementById('map-status');
-	const groups = Array.from(document.getElementsByClassName('map-group'));
-	const rows = Array.from(document.getElementsByClassName('relationship-row'));
-	const words = function (value) { return value ? value.split(' ') : []; };
+{{- template "theme-script"}}
 
-	function trace(svg, key) {
-		const linked = new Set(key ? [key] : []);
-		svg.classList.toggle('tracing', !!key);
-		for (const edge of svg.querySelectorAll('.edge')) {
-			const active = !!key && (edge.dataset.from === key || edge.dataset.to === key);
-			edge.classList.toggle('traced', active);
-			if (active) { linked.add(edge.dataset.from); linked.add(edge.dataset.to); }
-		}
-		for (const node of svg.querySelectorAll('[data-node]')) {
-			node.classList.toggle('traced', linked.has(node.dataset.node));
-			node.classList.toggle('focused', !!focus.value && node.dataset.node === focus.value);
-		}
+	const list = document.getElementById('rank-list');
+	if (!list) { return; }
+	const rows = Array.from(list.children);
+	const graph = new Map();
+	const glyphs = document.getElementById('focus-glyphs').content;
+	const search = document.getElementById('focus-search');
+	const options = document.getElementById('focus-options');
+	const board = document.getElementById('focus-graph');
+	const edges = document.getElementById('focus-edges');
+	const centre = document.getElementById('focus-centre');
+	const status = document.getElementById('focus-status');
+	const title = document.getElementById('focus-title');
+	const count = document.getElementById('rank-count');
+	const empty = document.getElementById('rank-empty');
+	const columns = {callers: document.getElementById('focus-callers'), runs: document.getElementById('focus-runs')};
+	const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const svg = 'http://www.w3.org/2000/svg';
+	const limit = 4;
+	let matches = [];
+	let active = -1;
+	let moveFocus = false;
+
+	const plural = function (n, noun) { return n + ' ' + noun + (n === 1 ? '' : 's'); };
+	const hashFor = function (key) { return '#map-' + encodeURIComponent(key); };
+
+	function el(tag, className, text) {
+		const node = document.createElement(tag);
+		if (className) { node.className = className; }
+		if (text) { node.textContent = text; }
+		return node;
 	}
 
-	function resting(svg) {
-		return words(svg.parentElement.dataset.members).includes(focus.value) ? focus.value : '';
+	function glyph(name) {
+		return glyphs.querySelector('[data-glyph="' + name + '"]').firstElementChild.cloneNode(true);
 	}
 
-	for (const svg of document.getElementsByClassName('dependency-svg')) {
-		const hover = function (event) {
-			const node = event.target.closest('[data-node]');
-			if (node) { trace(svg, node.dataset.node); }
+	function label(node) {
+		const text = el('span', 'focus-text');
+		text.append(el('strong', '', node.name), el('small', '', node.meta));
+		return text;
+	}
+
+	for (const row of rows) {
+		const link = row.querySelector('.rank-link');
+		const node = {
+			key: row.dataset.key,
+			rank: rows.indexOf(row),
+			name: row.querySelector('.rank-text strong').textContent,
+			href: link.getAttribute('href'),
+			tile: row.querySelector('.shortcut-icon'),
+			meta: row.querySelector('.rank-meta').textContent,
+			warning: row.querySelector('.rank-warning'),
+			row: row,
+			link: link,
+			callers: [],
+			runs: [],
+			self: false
 		};
-		svg.addEventListener('pointerover', hover);
-		svg.addEventListener('focusin', hover);
-		svg.addEventListener('pointerleave', function () { trace(svg, resting(svg)); });
-		svg.addEventListener('focusout', function () { trace(svg, resting(svg)); });
+		for (const item of row.querySelectorAll('[data-relation]')) {
+			if (item.dataset.kind === 'self') { node.self = true; continue; }
+			const name = item.querySelector('.relation-name');
+			node[item.dataset.relation].push({key: item.dataset.key || '', kind: item.dataset.kind || 'shortcut', name: name ? name.textContent : '', note: item.dataset.note || ''});
+		}
+		graph.set(node.key, node);
+		link.href = hashFor(node.key);
+		row.removeAttribute('id');
+		row.querySelector('.rank-details').remove();
+	}
+	const nodes = Array.from(graph.values());
+
+	function card(entry) {
+		const target = entry.key ? graph.get(entry.key) : null;
+		if (target) {
+			const link = el('a', 'focus-node');
+			link.href = hashFor(target.key);
+			link.append(target.tile.cloneNode(true), label(target));
+			return link;
+		}
+		const box = el('div', 'focus-node ' + entry.kind);
+		const icon = el('span', 'focus-glyph');
+		icon.append(glyph(entry.kind));
+		box.append(icon, label({name: entry.name, meta: entry.note}));
+		return box;
 	}
 
-	function apply() {
-		const key = focus.value;
-		for (const group of groups) {
-			group.hidden = !!key && !words(group.dataset.members).includes(key);
-			trace(group.querySelector('svg'), group.hidden ? '' : key);
+	function fill(side, entries) {
+		const target = columns[side];
+		const column = target.parentElement;
+		target.replaceChildren();
+		column.classList.remove('expanded');
+		entries.forEach(function (entry, index) {
+			const item = el('li', index >= limit ? 'focus-more' : '');
+			const node = card(entry);
+			node.dataset.edge = side + '-' + index;
+			if (!entry.key) { node.dataset.kind = entry.kind; }
+			item.append(node);
+			target.append(item);
+		});
+		column.querySelector('.column-count').textContent = entries.length;
+		column.querySelector('.column-empty').hidden = entries.length > 0;
+		const more = column.querySelector('.focus-expand');
+		more.hidden = entries.length <= limit;
+		more.textContent = 'Show ' + (entries.length - limit) + ' more';
+		board.classList.toggle('has-' + side, entries.length > 0);
+	}
+
+	function edge(className, points, arrow, key) {
+		const path = document.createElementNS(svg, 'path');
+		const sx = points[0], sy = points[1], ex = points[2], ey = points[3];
+		const bend = Math.max(8, (ex - sx) / 2);
+		path.setAttribute('class', className);
+		path.setAttribute('d', 'M' + sx + ' ' + sy + ' C' + (sx + bend) + ' ' + sy + ' ' + (ex - bend) + ' ' + ey + ' ' + ex + ' ' + ey);
+		if (arrow) { path.setAttribute('marker-end', 'url(#focus-arrow)'); }
+		if (key) { path.dataset.edge = key; }
+		edges.append(path);
+	}
+
+	function drawEdges() {
+		for (const path of edges.querySelectorAll('.edge')) { path.remove(); }
+		const main = document.getElementById('focus-current');
+		if (!main || getComputedStyle(edges).display === 'none') { return; }
+		const box = board.getBoundingClientRect();
+		const focus = main.getBoundingClientRect();
+		const mid = focus.top - box.top + focus.height / 2;
+		const left = focus.left - box.left;
+		const right = focus.right - box.left;
+		edges.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+		for (const side of ['callers', 'runs']) {
+			const visible = Array.from(columns[side].querySelectorAll('.focus-node')).filter(function (node) { return node.offsetParent !== null; });
+			if (!visible.length) { continue; }
+			const incoming = side === 'callers';
+			const junction = incoming ? left - 22 : right + 22;
+			for (const node of visible) {
+				const r = node.getBoundingClientRect();
+				const middle = r.top - box.top + r.height / 2;
+				const className = 'edge' + (node.dataset.kind ? ' ' + node.dataset.kind : '');
+				if (incoming) {
+					edge(className, [r.right - box.left, middle, junction, mid], false, node.dataset.edge);
+				} else {
+					edge(className, [junction, mid, r.left - box.left - 3, middle], true, node.dataset.edge);
+				}
+			}
+			if (incoming) {
+				edge('edge trunk', [junction, mid, left - 3, mid], true, '');
+			} else {
+				edge('edge trunk', [right, mid, junction, mid], false, '');
+			}
 		}
-		for (const row of rows) {
-			row.hidden = !!key && !words(row.dataset.related).includes(key);
+	}
+
+	function light(event) {
+		const node = event.type === 'pointerleave' ? null : event.target.closest('[data-edge]');
+		for (const path of edges.querySelectorAll('.edge')) {
+			path.classList.toggle('lit', !!node && path.dataset.edge === node.dataset.edge);
 		}
-		status.textContent = key ? 'Showing the shortcuts connected to ' + focus.selectedOptions[0].textContent : 'Showing all connections';
+	}
+
+	function focusOn(node) {
+		centre.replaceChildren();
+		const main = el('a', 'focus-node focus-current');
+		main.id = 'focus-current';
+		main.href = node.href;
+		const open = el('span', 'focus-open', 'Open shortcut');
+		open.append(glyph('chevron'));
+		main.append(node.tile.cloneNode(true), label(node), open);
+		centre.append(main);
+		const badges = el('div', 'focus-badges');
+		if (node.self) {
+			const badge = el('span', 'focus-badge');
+			badge.append(glyph('repeat'), document.createTextNode('Runs itself'));
+			badges.append(badge);
+		}
+		if (node.warning) {
+			const badge = node.warning.cloneNode(true);
+			badge.className = 'focus-badge warning';
+			badges.append(badge);
+		}
+		if (badges.childElementCount) { centre.append(badges); }
+		fill('callers', node.callers);
+		fill('runs', node.runs);
+		for (const other of nodes) {
+			const current = other === node;
+			other.row.classList.toggle('current', current);
+			if (current) { other.link.setAttribute('aria-current', 'true'); } else { other.link.removeAttribute('aria-current'); }
+		}
+		title.textContent = 'Connections of ' + node.name;
+		status.textContent = node.name + ': ' + node.meta;
+		drawEdges();
+	}
+
+	function keyFromHash() {
+		if (window.location.hash.indexOf('#map-') !== 0) { return ''; }
+		try { return decodeURIComponent(window.location.hash.slice(5)); } catch (error) { return ''; }
+	}
+
+	function reveal(element) {
+		const r = element.getBoundingClientRect();
+		if (r.top < 0 || r.bottom > window.innerHeight) {
+			element.scrollIntoView({block: 'center', behavior: reduced.matches ? 'auto' : 'smooth'});
+		}
 	}
 
 	function fromHash() {
-		const key = window.location.hash.startsWith('#map-') ? decodeURIComponent(window.location.hash.slice(5)) : '';
-		if (!Array.from(focus.options).some(function (option) { return option.value === key; })) { return; }
-		focus.value = key;
-		apply();
-		const node = document.getElementById('map-' + key);
-		if (node) { node.scrollIntoView({block: 'center', inline: 'center'}); }
+		const moved = moveFocus;
+		moveFocus = false;
+		focusOn(graph.get(keyFromHash()) || nodes[0]);
+		if (moved) {
+			const main = document.getElementById('focus-current');
+			main.focus({preventScroll: true});
+			reveal(main);
+		}
 	}
 
-	focus.addEventListener('change', function () {
-		try {
-			window.history.replaceState(null, '', focus.value ? '#map-' + focus.value : window.location.pathname + window.location.search);
-		} catch (error) {}
-		apply();
+	function choose(key) {
+		search.value = '';
+		filter();
+		if (window.location.hash === hashFor(key)) { fromHash(); } else { window.location.hash = hashFor(key); }
+	}
+
+	function renderOptions() {
+		options.replaceChildren();
+		matches.forEach(function (node, index) {
+			const option = el('li', 'focus-option');
+			option.id = 'focus-option-' + index;
+			option.dataset.key = node.key;
+			option.setAttribute('role', 'option');
+			option.setAttribute('aria-selected', index === active ? 'true' : 'false');
+			option.append(node.tile.cloneNode(true), label(node));
+			options.append(option);
+		});
+		const open = matches.length > 0;
+		options.hidden = !open;
+		search.setAttribute('aria-expanded', open ? 'true' : 'false');
+		if (open && active >= 0) { search.setAttribute('aria-activedescendant', 'focus-option-' + active); } else { search.removeAttribute('aria-activedescendant'); }
+	}
+
+	function filter() {
+		const query = search.value.trim().toLowerCase();
+		const hits = nodes.filter(function (node) { return node.name.toLowerCase().includes(query); });
+		for (const node of nodes) { node.row.hidden = !hits.includes(node); }
+		count.textContent = query ? hits.length + ' of ' + plural(nodes.length, 'shortcut') : plural(nodes.length, 'shortcut');
+		empty.hidden = hits.length > 0;
+		const starts = function (node) { return node.name.toLowerCase().startsWith(query) ? 0 : 1; };
+		matches = query && document.activeElement === search ? hits.slice().sort(function (a, b) { return starts(a) - starts(b) || a.rank - b.rank; }).slice(0, 8) : [];
+		active = matches.length ? 0 : -1;
+		renderOptions();
+	}
+
+	search.addEventListener('input', filter);
+	search.addEventListener('focus', filter);
+	search.addEventListener('blur', function () { matches = []; renderOptions(); });
+	search.addEventListener('keydown', function (event) {
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			if (!matches.length) { return; }
+			event.preventDefault();
+			active = (active + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
+			renderOptions();
+			options.children[active].scrollIntoView({block: 'nearest'});
+		} else if (event.key === 'Enter') {
+			if (!matches.length) { return; }
+			event.preventDefault();
+			choose(matches[Math.max(active, 0)].key);
+		} else if (event.key === 'Escape') {
+			if (matches.length) {
+				event.preventDefault();
+				matches = [];
+				renderOptions();
+			} else if (search.value) {
+				event.preventDefault();
+				search.value = '';
+				filter();
+			}
+		}
 	});
+	options.addEventListener('mousedown', function (event) { event.preventDefault(); });
+	options.addEventListener('click', function (event) {
+		const option = event.target.closest('[data-key]');
+		if (option) { choose(option.dataset.key); }
+	});
+	document.addEventListener('keydown', function (event) {
+		const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName);
+		if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
+			event.preventDefault();
+			search.focus();
+		}
+	});
+	document.addEventListener('click', function (event) {
+		const link = event.target.closest('a[href^="#map-"]');
+		if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
+		moveFocus = true;
+		if (link.getAttribute('href') === window.location.hash) {
+			event.preventDefault();
+			fromHash();
+		}
+	});
+	for (const button of document.getElementsByClassName('focus-expand')) {
+		button.addEventListener('click', function () {
+			button.parentElement.classList.add('expanded');
+			button.hidden = true;
+			drawEdges();
+		});
+	}
+	board.addEventListener('pointerover', light);
+	board.addEventListener('pointerleave', light);
+	board.addEventListener('focusin', light);
 	window.addEventListener('hashchange', fromHash);
-	document.getElementById('map-controls').hidden = false;
+	new ResizeObserver(drawEdges).observe(board);
+	document.getElementById('focus-tools').hidden = false;
+	document.getElementById('focus-card').hidden = false;
+	list.classList.add('interactive');
+	filter();
 	fromHash();
-{{template "theme-script"}}
 });
 </script>
 </head>
@@ -83,59 +331,59 @@ document.addEventListener('DOMContentLoaded', function () {
 <main>
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{.Home}}">{{template "icon-back"}} All shortcuts</a><span aria-hidden="true">/</span><span>Dependency map</span></nav>
 <div class="page-heading map-heading"><div><span class="eyebrow">Follow the connections</span><h1>Dependency map</h1><p>How the shortcuts in this backup run each other through Run Shortcut actions: {{.Connected}} connected, {{.Standalone}} standalone{{if .Missing}}, {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}{{end}}{{if .Dynamic}}, {{.Dynamic}} chosen at run time{{end}}.</p></div><span class="badge">Workflow-linked</span></div>
-{{- if .Groups}}
-<div class="graph-controls" id="map-controls" hidden><label class="graph-filter"><span>Focus on</span><select id="focus"><option value="">All connections</option>{{range .Options}}<option value="{{.Value}}">{{.Name}}</option>{{end}}</select></label></div>
-<p class="sr-only" id="map-status" role="status" aria-live="polite"></p>
-<div class="graph-legend"><span><i class="legend-line"></i>Runs shortcut</span><span><i class="legend-line missing"></i>Missing reference</span><span><i class="legend-line dynamic"></i>Chosen at run time</span><span>Calls flow left to right</span><a class="text-link" href="#relationships-heading">Skip to the relationship list</a></div>
-<svg class="map-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
-<div class="map-groups">
-{{- range .Groups}}
-<section class="map-group" data-members="{{.Members}}">
-<svg class="dependency-svg" width="{{.Width}}" height="{{.Height}}" viewBox="0 0 {{.Width}} {{.Height}}" role="group" aria-label="{{.Label}}">
-{{- range .Columns}}
-<text class="column-label" x="{{.X}}" y="26">{{.Label}}</text>
-{{- end}}
-{{- range .Edges}}
-<path class="edge{{with .Kind}} {{.}}{{end}}" data-from="{{.From}}" data-to="{{.To}}" d="{{.Path}}" marker-end="url(#arrow)"><title>{{.Title}}</title></path>
-{{- end}}
-{{- range .Nodes}}
-{{- if .Href}}
-<a class="graph-node" id="{{.Anchor}}" data-node="{{.Key}}" href="{{.Href}}" aria-label="{{.Label}}"><title>{{.Name}}</title>{{template "map-node" .}}</a>
-{{- else}}
-<g class="graph-node {{.Kind}}-node" data-node="{{.Key}}" role="img" aria-label="{{.Label}}"><title>{{.Name}}</title>{{template "map-node" .}}</g>
-{{- end}}
-{{- end}}
-</svg>
-</section>
-{{- end}}
+{{- if .Rows}}
+<div class="focus-tools" id="focus-tools" hidden>
+<div class="focus-search">
+<label class="search">{{template "icon-search"}}<span class="sr-only">Find a connected shortcut</span><input id="focus-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="focus-options" placeholder="Find a connected shortcut" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
+<ul class="focus-options" id="focus-options" role="listbox" aria-label="Matching shortcuts" hidden></ul>
 </div>
+<div class="graph-legend" aria-hidden="true"><span><i class="legend-line"></i>Runs</span><span><i class="legend-line missing"></i>Missing</span><span><i class="legend-line dynamic"></i>Chosen at run time</span></div>
+</div>
+<section class="focus-card" id="focus-card" aria-labelledby="focus-title" hidden>
+<h2 class="sr-only" id="focus-title">Connections</h2>
+<div class="focus-graph" id="focus-graph">
+<svg class="focus-edges" id="focus-edges" aria-hidden="true" focusable="false"><defs><marker id="focus-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="context-stroke"></path></marker></defs></svg>
+<div class="focus-column focus-callers"><h3>Called by <span class="column-count"></span></h3><ul id="focus-callers"></ul><p class="column-empty">Nothing in this backup runs it</p><button type="button" class="btn focus-expand" hidden></button></div>
+<div class="focus-arrow focus-arrow-in" aria-hidden="true">{{template "icon-arrow-down"}}</div>
+<div class="focus-centre" id="focus-centre"></div>
+<div class="focus-arrow focus-arrow-out" aria-hidden="true">{{template "icon-arrow-down"}}</div>
+<div class="focus-column focus-runs"><h3>Runs <span class="column-count"></span></h3><ul id="focus-runs"></ul><p class="column-empty">Runs no other shortcut</p><button type="button" class="btn focus-expand" hidden></button></div>
+</div>
+</section>
+<p class="sr-only" id="focus-status" role="status" aria-live="polite"></p>
+<template id="focus-glyphs"><span data-glyph="missing">{{template "icon-warning"}}</span><span data-glyph="dynamic">{{template "icon-shuffle"}}</span><span data-glyph="repeat">{{template "icon-repeat"}}</span><span data-glyph="chevron">{{template "icon-chevron"}}</span></template>
+<section class="rank-section" aria-labelledby="rank-heading">
+<div class="section-heading rank-heading"><h2 id="rank-heading">Most connected</h2><span id="rank-count" role="status" aria-live="polite">{{len .Rows}} shortcut{{if ne (len .Rows) 1}}s{{end}}</span></div>
+<p class="rank-intro">Ranked by how many shortcuts run each one plus how many it runs.</p>
+<ol class="rank-list" id="rank-list">
+{{- range .Rows}}
+<li class="rank-row" id="{{.Anchor}}" data-key="{{.Key}}">
+<a class="rank-link" href="{{.Href}}"><span class="rank-number">{{.Rank}}</span><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><span class="rank-text"><strong>{{.Name}}</strong><small class="rank-meta">{{.CallerCount}} caller{{if ne .CallerCount 1}}s{{end}} · {{.RunCount}} run{{if ne .RunCount 1}}s{{end}}{{if .Self}} · runs itself{{end}}</small>{{if .Missing}}<small class="rank-warning">{{template "icon-warning"}} {{.Missing}} missing reference{{if ne .Missing 1}}s{{end}}</small>{{end}}</span></a>
+<details class="rank-details"><summary>Callers and runs</summary>
+<div class="rank-relations">
+<div><h3>Called by</h3>{{if .Callers}}<ul>{{range .Callers}}<li data-relation="callers" data-key="{{.Key}}"><a href="{{.Href}}">{{.Name}}</a></li>{{end}}</ul>{{else}}<p>Nothing in this backup runs it.</p>{{end}}</div>
+<div><h3>Runs</h3>{{if or .Runs .Self}}<ul>
+{{- range .Runs}}
+{{- if eq .Kind "shortcut"}}<li data-relation="runs" data-key="{{.Key}}"><a href="{{.Href}}">{{.Name}}</a></li>
+{{- else}}<li class="relation-{{.Kind}}" data-relation="runs" data-kind="{{.Kind}}" data-note="{{.Note}}"><span class="relation-name">{{.Name}}</span> <small>{{.Note}}</small></li>
+{{- end}}
+{{- end}}
+{{- if .Self}}<li data-relation="runs" data-kind="self">Itself</li>{{end -}}
+</ul>{{else}}<p>No other shortcut.</p>{{end}}</div>
+</div>
+</details>
+</li>
+{{- end}}
+</ol>
+<div class="empty" id="rank-empty" hidden><h2>No connected shortcut matches</h2><p>Only shortcuts that run or are run by another are listed here.</p></div>
+{{- if .Standalone}}
+<p class="rank-footnote">{{if eq .Standalone 1}}1 standalone shortcut neither runs nor is run by another, so it is not listed.{{else}}{{.Standalone}} standalone shortcuts neither run nor are run by another, so they are not listed.{{end}} <a class="text-link" href="{{.Home}}">Browse the whole library</a></p>
+{{- end}}
+</section>
 {{- else}}
 <div class="empty"><h2>No connections yet</h2><p>No shortcut in this backup runs another.</p></div>
-{{- end}}
-{{- with .Rows}}
-<section class="relationship-list" aria-labelledby="relationships-heading">
-<h2 id="relationships-heading">Relationships</h2>
-{{- range .}}
-<div class="relationship-row" data-related="{{.Related}}">
-<a href="{{.Href}}"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}">{{template "icon-layers"}}</span><strong>{{.Name}}</strong></a>
-<div>
-{{- range .Runs}}
-{{- if .Href}}<a class="chip" href="{{.Href}}">Runs {{.Name}}</a>
-{{- else if eq .Kind "self"}}<span class="chip">Runs itself</span>
-{{- else if eq .Kind "missing"}}<span class="chip chip-missing">{{template "icon-warning"}} Missing: {{.Name}}</span>
-{{- else}}<span class="chip">Chosen at run time</span>
-{{- end}}
-{{- else}}<span class="chip-muted">No outgoing calls</span>
-{{- end}}
-{{- if .Callers}}<span class="chip-muted">Called by {{.Callers}}</span>{{end}}
-</div>
-</div>
-{{- end}}
-</section>
 {{- end}}
 </main>
 </body>
 </html>
 {{end}}
-
-{{define "map-node"}}<rect x="{{.X}}" y="{{.Y}}" width="{{.W}}" height="{{.H}}" rx="12"></rect><circle class="dot{{if .DarkIcon}} dark-icon{{end}}" cx="{{.DotX}}" cy="{{.DotY}}" r="6"{{with .Color}} fill="{{.}}"{{end}}></circle><text x="{{.TextX}}" y="{{.NameY}}">{{.Short}}</text><text class="node-subtitle" x="{{.TextX}}" y="{{.SubY}}">{{.Subtitle}}</text>{{end}}

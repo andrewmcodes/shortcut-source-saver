@@ -197,8 +197,96 @@ func TestSiteIgnoresEntryOrder(t *testing.T) {
 	}
 }
 
-func TestMapIsKeyboardReachableAndEscaped(t *testing.T) {
-	hostile := withID(workflow(`<script>alert(1)</script>`, runShortcut(helperID, `"><img src=x>`, false)), callerID)
+func mapRows(t *testing.T, page string) map[string]string {
+	t.Helper()
+	rows := map[string]string{}
+	var order []string
+	for _, chunk := range strings.Split(page, `<li class="rank-row" id="map-`)[1:] {
+		key := chunk[:strings.Index(chunk, `"`)]
+		end := strings.Index(chunk, "</details>")
+		if end < 0 {
+			t.Fatalf("row %s has no details", key)
+		}
+		rows[key] = chunk[:end]
+		order = append(order, key)
+	}
+	rows[""] = strings.Join(order, " ")
+	return rows
+}
+
+func TestMapRanksByConnections(t *testing.T) {
+	unrelated := withID(workflow("Unrelated", action("is.workflow.actions.nothing", nil)), "EEEEEEEE-0000-0000-0000-000000000005")
+	site, err := Site(append(dependencyEntries(), Entry{Workflow: unrelated}), SiteOptions{})
+	if err != nil {
+		t.Fatalf("Site: %v", err)
+	}
+	page := string(site[MapPath])
+	rows := mapRows(t, page)
+	if got, want := rows[""], "caller helper utility"; got != want {
+		t.Errorf("ranking = %q, want %q: most connected first, ties by name, standalone left out", got, want)
+	}
+	for key, want := range map[string]string{
+		"caller":  `<span class="rank-number">1</span>`,
+		"helper":  `1 caller · 1 run</small>`,
+		"utility": `2 callers · 0 runs</small>`,
+	} {
+		if !strings.Contains(rows[key], want) {
+			t.Errorf("row %s is missing %s", key, want)
+		}
+	}
+	if !strings.Contains(rows["caller"], `0 callers · 4 runs · runs itself</small><small class="rank-warning">`) {
+		t.Error("the caller runs four distinct targets besides itself, one of them missing")
+	}
+	if !strings.Contains(page, "1 standalone shortcut neither runs nor is run by another") {
+		t.Error("the map should count the standalone shortcuts it leaves out")
+	}
+	if !strings.Contains(page, "focusOn(graph.get(keyFromHash()) || nodes[0])") {
+		t.Error("without a hash the focus view should open on the top-ranked shortcut")
+	}
+}
+
+func TestMapListsConnectionsWithoutScript(t *testing.T) {
+	site, err := Site(dependencyEntries(), SiteOptions{})
+	if err != nil {
+		t.Fatalf("Site: %v", err)
+	}
+	rows := mapRows(t, string(site[MapPath]))
+	want := map[string][]string{
+		"caller": {
+			`<a class="rank-link" href="shortcuts/caller.html">`,
+			`<p>Nothing in this backup runs it.</p>`,
+			`<li data-relation="runs" data-key="helper"><a href="shortcuts/helper.html">Helper</a></li>`,
+			`<li data-relation="runs" data-key="utility"><a href="shortcuts/utility.html">Utility</a></li>`,
+			`data-kind="missing" data-note="Not in this backup"><span class="relation-name">Ghost</span>`,
+			`data-kind="dynamic" data-note="From a variable"><span class="relation-name">Chosen at run time</span>`,
+			`<li data-relation="runs" data-kind="self">Itself</li>`,
+		},
+		"helper": {
+			`<li data-relation="callers" data-key="caller"><a href="shortcuts/caller.html">Caller</a></li>`,
+			`<li data-relation="runs" data-key="utility"><a href="shortcuts/utility.html">Utility</a></li>`,
+		},
+		"utility": {
+			`<li data-relation="callers" data-key="caller"><a href="shortcuts/caller.html">Caller</a></li><li data-relation="callers" data-key="helper"><a href="shortcuts/helper.html">Helper</a></li>`,
+			`<p>No other shortcut.</p>`,
+		},
+	}
+	for key, fragments := range want {
+		for _, fragment := range fragments {
+			if !strings.Contains(rows[key], fragment) {
+				t.Errorf("row %s is missing %s", key, fragment)
+			}
+		}
+	}
+	if n := strings.Count(rows["caller"], `data-relation="runs" data-key="helper"`); n != 1 {
+		t.Errorf("caller lists helper %d times, want once however many actions run it", n)
+	}
+}
+
+func TestMapEscapesShortcutText(t *testing.T) {
+	hostile := withID(workflow(`<script>alert(1)</script>`,
+		runShortcut(helperID, "Helper", false),
+		runShortcut("FFFFFFFF-0000-0000-0000-000000000000", `</script><img src=x>`, false),
+	), callerID)
 	helper := withID(workflow("Helper", action("is.workflow.actions.nothing", nil)), helperID)
 	site, err := Site([]Entry{{Workflow: hostile}, {Workflow: helper}}, SiteOptions{})
 	if err != nil {
@@ -216,10 +304,13 @@ func TestMapIsKeyboardReachableAndEscaped(t *testing.T) {
 		}
 	}
 	page := string(site[MapPath])
-	if strings.Count(page, `<a class="graph-node"`) != 2 {
-		t.Error("every shortcut on the map should be a focusable link")
+	for _, want := range []string{
+		`<strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>`,
+		`<span class="relation-name">&lt;/script&gt;&lt;img src=x&gt;</span>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("map is missing escaped text %s", want)
+		}
 	}
-	if !strings.Contains(page, `href="shortcuts/helper.html" aria-label="Helper, 1 action"`) {
-		t.Error("map nodes should link to the shortcut page with an accessible name")
-	}
+	assertTagsBalanced(t, site[MapPath])
 }
