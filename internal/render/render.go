@@ -103,6 +103,13 @@ type pageHeader struct {
 	Corrupted   bool
 	CorruptedAt int
 	Deps        *pageDeps
+	Inactive    *inactiveStatus
+}
+
+type inactiveStatus struct {
+	Conflict     bool
+	OriginalName string
+	OriginalHref string
 }
 
 type metaRow struct {
@@ -175,6 +182,9 @@ func headerFor(w *shortcuts.Workflow, built *review, r *reviewer) pageHeader {
 		ColorText:   color,
 		DarkIcon:    isDarkColor(color),
 		CorruptedAt: -1,
+	}
+	if isInactive(w) {
+		header.Inactive = &inactiveStatus{Conflict: w.Status == shortcuts.StatusConflict, OriginalName: w.ConflictOf.Name}
 	}
 
 	header.Rows = []metaRow{
@@ -439,6 +449,7 @@ type indexPage struct {
 	Chrome       chrome
 	MapHref      string
 	Count        int
+	Deleted      int
 	Actions      int
 	Flagged      int
 	Connected    int
@@ -462,6 +473,10 @@ type indexRow struct {
 	Calls        int
 	Callers      int
 	Missing      int
+	Connected    bool
+	Linked       bool
+	Inactive     string
+	DeletedLinks int
 }
 
 func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
@@ -494,6 +509,9 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		slug := slugs[i]
 		deps := graph.pageDeps(i, pageHref, prefix(1)+MapPath)
 		rendered := buildPage(entry.Workflow, opts.ExpandAll, deps)
+		if status := rendered.Header.Inactive; status != nil && status.Conflict {
+			status.OriginalHref, _ = graph.original(i, pageHref)
+		}
 		rendered.Stylesheet = prefix(1) + StylesheetPath
 		rendered.Home = pageChrome.Home
 		rendered.Chrome = pageChrome
@@ -507,10 +525,6 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		if modified.After(latest) {
 			latest = modified
 		}
-		index.Actions += len(entry.Workflow.Actions)
-		if rendered.Header.Corrupted {
-			index.Flagged++
-		}
 		row := indexRow{
 			Name:         entry.Workflow.Name,
 			Href:         rootHref(slug),
@@ -523,10 +537,23 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 			DarkIcon:     rendered.Header.DarkIcon,
 			Flagged:      rendered.Header.Corrupted,
 			Calls:        graph.outgoing(i),
-			Callers:      len(deps.CalledBy),
+			Callers:      graph.activeCallers(i),
 			Missing:      graph.missing(i),
+			Connected:    graph.activeConnected(i),
+			Linked:       graph.connected(i),
+			Inactive:     statusReason(entry.Workflow),
+			DeletedLinks: graph.inactiveNeighbours(i),
 		}
-		if graph.connected(i) {
+		rows = append(rows, row)
+		if row.Inactive != "" {
+			index.Deleted++
+			continue
+		}
+		index.Actions += len(entry.Workflow.Actions)
+		if row.Flagged {
+			index.Flagged++
+		}
+		if row.Connected {
 			index.Connected++
 		} else {
 			index.Standalone++
@@ -534,9 +561,8 @@ func Site(entries []Entry, opts SiteOptions) (map[string][]byte, error) {
 		if row.Missing > 0 {
 			index.Missing++
 		}
-		rows = append(rows, row)
 	}
-	index.Count = len(rows)
+	index.Count = len(rows) - index.Deleted
 	index.LastModified = formatDate(latest)
 
 	sort.SliceStable(rows, func(i, j int) bool {

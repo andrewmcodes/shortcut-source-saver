@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	const search = document.getElementById('search');
 	const filter = document.getElementById('filter');
 	const sort = document.getElementById('sort');
+	const deleted = document.getElementById('show-deleted');
 	const empty = document.getElementById('empty');
 	const title = document.getElementById('results-title');
 	const count = document.getElementById('results-count');
@@ -28,19 +29,28 @@ document.addEventListener('DOMContentLoaded', function () {
 		modified: function (a, b) { return b.dataset.modified.localeCompare(a.dataset.modified); }
 	};
 
+	function inScope(card, option) {
+		const match = option.dataset.match;
+		return (deleted.checked || !card.hasAttribute('data-deleted')) && (!match || card.matches(match));
+	}
+
 	function update() {
 		const query = search.value.trim().toLowerCase();
-		const match = filter.selectedOptions[0].dataset.match;
+		const selected = filter.selectedOptions[0];
+		list.classList.toggle('with-deleted', deleted.checked);
 		let pool = 0;
 		let shown = 0;
 		for (const card of cards) {
-			const inFilter = !match || card.matches(match);
+			const inFilter = inScope(card, selected);
 			const visible = inFilter && name(card).toLowerCase().includes(query);
 			if (inFilter) { pool++; }
 			if (visible) { shown++; }
 			card.hidden = !visible;
 		}
-		title.textContent = filter.selectedOptions[0].dataset.label;
+		for (const option of filter.options) {
+			option.textContent = option.dataset.label + ' (' + cards.filter(function (card) { return inScope(card, option); }).length + ')';
+		}
+		title.textContent = selected.dataset.label;
 		count.textContent = query ? shown + ' of ' + plural(pool) : plural(shown);
 		empty.hidden = shown > 0;
 		list.hidden = shown === 0;
@@ -51,12 +61,42 @@ document.addEventListener('DOMContentLoaded', function () {
 		for (const card of sorted) { list.appendChild(card); }
 	}
 
+	function storeDeleted() {
+		try {
+			if (deleted.checked) { localStorage.setItem('sss-show-deleted', '1'); } else { localStorage.removeItem('sss-show-deleted'); }
+		} catch (error) {}
+	}
+
+	function writeHash() {
+		const hash = filter.value === 'all' ? '' : '#' + filter.value;
+		if (window.location.hash !== hash) { history.replaceState(null, '', hash || window.location.pathname + window.location.search); }
+	}
+
+	function fromHash() {
+		const wanted = window.location.hash.slice(1);
+		const option = Array.from(filter.options).find(function (item) { return item.value === wanted; });
+		if (option) { filter.value = option.value; }
+		if (filter.value === 'deleted') { deleted.checked = true; }
+		update();
+	}
+
+	try { deleted.checked = localStorage.getItem('sss-show-deleted') === '1'; } catch (error) {}
 	search.addEventListener('input', update);
-	filter.addEventListener('change', update);
+	filter.addEventListener('change', function () {
+		if (filter.value === 'deleted') { deleted.checked = true; }
+		writeHash();
+		update();
+	});
+	deleted.addEventListener('change', function () {
+		if (!deleted.checked && filter.value === 'deleted') { filter.value = 'all'; writeHash(); }
+		storeDeleted();
+		update();
+	});
 	sort.addEventListener('change', reorder);
 	document.getElementById('clear').addEventListener('click', function () {
 		search.value = '';
 		filter.value = 'all';
+		writeHash();
 		update();
 		search.focus();
 	});
@@ -67,7 +107,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			search.focus();
 		}
 	});
-	window.addEventListener('pageshow', function () { reorder(); update(); });
+	window.addEventListener('hashchange', fromHash);
+	window.addEventListener('pageshow', function () { reorder(); fromHash(); });
 	document.getElementById('toolbar').hidden = false;
 
 	const themeButton = document.getElementById('theme');
@@ -113,8 +154,9 @@ document.addEventListener('DOMContentLoaded', function () {
 </details>
 <div class="library-toolbar" id="toolbar" hidden>
 <label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5"></path></svg><span class="sr-only">Search shortcuts</span><input id="search" type="search" placeholder="Search shortcuts" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
-<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts (3)</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged (0)</option><option value="connected" data-label="Connected" data-match="[data-connected]">Connected (0)</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected])">Standalone (3)</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references (0)</option></select>
+<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts (3)</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged (0)</option><option value="connected" data-label="Connected" data-match="[data-connected], .with-deleted [data-linked]">Connected (0)</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected]):not(.with-deleted [data-linked])">Standalone (3)</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references (0)</option></select>
 <select id="sort" aria-label="Sort shortcuts"><option value="name">Sort by name</option><option value="actions">Most actions</option><option value="modified">Recently modified</option></select>
+<label class="toggle" hidden><input type="checkbox" id="show-deleted" autocomplete="off"><span>Show deleted</span><span class="toggle-count">0</span></label>
 <div class="results-summary" role="status" aria-live="polite"><h2 id="results-title">All shortcuts</h2><span class="results-count" id="results-count">3 shortcuts</span></div>
 </div>
 <div class="cards" id="shortcuts">

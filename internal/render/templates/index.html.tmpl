@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	const search = document.getElementById('search');
 	const filter = document.getElementById('filter');
 	const sort = document.getElementById('sort');
+	const deleted = document.getElementById('show-deleted');
 	const empty = document.getElementById('empty');
 	const title = document.getElementById('results-title');
 	const count = document.getElementById('results-count');
@@ -25,19 +26,28 @@ document.addEventListener('DOMContentLoaded', function () {
 		modified: function (a, b) { return b.dataset.modified.localeCompare(a.dataset.modified); }
 	};
 
+	function inScope(card, option) {
+		const match = option.dataset.match;
+		return (deleted.checked || !card.hasAttribute('data-deleted')) && (!match || card.matches(match));
+	}
+
 	function update() {
 		const query = search.value.trim().toLowerCase();
-		const match = filter.selectedOptions[0].dataset.match;
+		const selected = filter.selectedOptions[0];
+		list.classList.toggle('with-deleted', deleted.checked);
 		let pool = 0;
 		let shown = 0;
 		for (const card of cards) {
-			const inFilter = !match || card.matches(match);
+			const inFilter = inScope(card, selected);
 			const visible = inFilter && name(card).toLowerCase().includes(query);
 			if (inFilter) { pool++; }
 			if (visible) { shown++; }
 			card.hidden = !visible;
 		}
-		title.textContent = filter.selectedOptions[0].dataset.label;
+		for (const option of filter.options) {
+			option.textContent = option.dataset.label + ' (' + cards.filter(function (card) { return inScope(card, option); }).length + ')';
+		}
+		title.textContent = selected.dataset.label;
 		count.textContent = query ? shown + ' of ' + plural(pool) : plural(shown);
 		empty.hidden = shown > 0;
 		list.hidden = shown === 0;
@@ -48,12 +58,42 @@ document.addEventListener('DOMContentLoaded', function () {
 		for (const card of sorted) { list.appendChild(card); }
 	}
 
+	function storeDeleted() {
+		try {
+			if (deleted.checked) { localStorage.setItem('sss-show-deleted', '1'); } else { localStorage.removeItem('sss-show-deleted'); }
+		} catch (error) {}
+	}
+
+	function writeHash() {
+		const hash = filter.value === 'all' ? '' : '#' + filter.value;
+		if (window.location.hash !== hash) { history.replaceState(null, '', hash || window.location.pathname + window.location.search); }
+	}
+
+	function fromHash() {
+		const wanted = window.location.hash.slice(1);
+		const option = Array.from(filter.options).find(function (item) { return item.value === wanted; });
+		if (option) { filter.value = option.value; }
+		if (filter.value === 'deleted') { deleted.checked = true; }
+		update();
+	}
+
+	try { deleted.checked = localStorage.getItem('sss-show-deleted') === '1'; } catch (error) {}
 	search.addEventListener('input', update);
-	filter.addEventListener('change', update);
+	filter.addEventListener('change', function () {
+		if (filter.value === 'deleted') { deleted.checked = true; }
+		writeHash();
+		update();
+	});
+	deleted.addEventListener('change', function () {
+		if (!deleted.checked && filter.value === 'deleted') { filter.value = 'all'; writeHash(); }
+		storeDeleted();
+		update();
+	});
 	sort.addEventListener('change', reorder);
 	document.getElementById('clear').addEventListener('click', function () {
 		search.value = '';
 		filter.value = 'all';
+		writeHash();
 		update();
 		search.focus();
 	});
@@ -64,7 +104,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			search.focus();
 		}
 	});
-	window.addEventListener('pageshow', function () { reorder(); update(); });
+	window.addEventListener('hashchange', fromHash);
+	window.addEventListener('pageshow', function () { reorder(); fromHash(); });
 	document.getElementById('toolbar').hidden = false;
 {{template "theme-script"}}
 });
@@ -75,26 +116,36 @@ document.addEventListener('DOMContentLoaded', function () {
 <main>
 <div class="page-heading"><h1>{{.Title}}</h1>{{with .LastModified}}<span class="badge">Last change {{.}}</span>{{end}}</div>
 <details class="library-summary">
-<summary><span>{{template "icon-layers"}} Library overview</span><span>{{.Count}} shortcut{{if ne .Count 1}}s{{end}} · {{.Actions}} action{{if ne .Actions 1}}s{{end}}</span></summary>
+<summary><span>{{template "icon-layers"}} Library overview</span><span>{{.Count}} shortcut{{if ne .Count 1}}s{{end}}{{if .Deleted}} · {{.Deleted}} deleted{{end}} · {{.Actions}} action{{if ne .Actions 1}}s{{end}}</span></summary>
 <div class="stats">
 <div><strong>{{.Count}}</strong><span>Shortcuts</span></div>
 <div><strong>{{.Actions}}</strong><span>Actions</span></div>
 <div><strong>{{.Flagged}}{{if .Flagged}}<span class="warning-dot">{{template "icon-warning"}}</span>{{end}}</strong><span>Flagged</span></div>
 <div><strong>{{.Connected}}</strong><span>Connected</span></div>
+{{- if .Deleted}}
+<div><strong>{{.Deleted}}</strong><span>Deleted</span></div>
+{{- end}}
 </div>
+{{- if .Deleted}}
+<p class="stats-note">Counts are for shortcuts still in your library; deleted shortcuts and sync-conflict copies are counted separately.</p>
+{{- end}}
 </details>
 <div class="library-toolbar" id="toolbar" hidden>
 <label class="search">{{template "icon-search"}}<span class="sr-only">Search shortcuts</span><input id="search" type="search" placeholder="Search shortcuts" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
-<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts ({{.Count}})</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged ({{.Flagged}})</option><option value="connected" data-label="Connected" data-match="[data-connected]">Connected ({{.Connected}})</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected])">Standalone ({{.Standalone}})</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references ({{.Missing}})</option></select>
+<select id="filter" aria-label="Filter shortcuts"><option value="all" data-label="All shortcuts">All shortcuts ({{.Count}})</option><option value="flagged" data-label="Flagged" data-match="[data-flagged]">Flagged ({{.Flagged}})</option><option value="connected" data-label="Connected" data-match="[data-connected], .with-deleted [data-linked]">Connected ({{.Connected}})</option><option value="standalone" data-label="Standalone" data-match=":not([data-connected]):not(.with-deleted [data-linked])">Standalone ({{.Standalone}})</option><option value="missing" data-label="Missing references" data-match="[data-missing]">Missing references ({{.Missing}})</option>{{if .Deleted}}<option value="deleted" data-label="Deleted" data-match="[data-deleted]">Deleted ({{.Deleted}})</option>{{end}}</select>
 <select id="sort" aria-label="Sort shortcuts"><option value="name">Sort by name</option><option value="actions">Most actions</option><option value="modified">Recently modified</option></select>
+<label class="toggle"{{if not .Deleted}} hidden{{end}}><input type="checkbox" id="show-deleted" autocomplete="off"><span>Show deleted</span><span class="toggle-count">{{.Deleted}}</span></label>
 <div class="results-summary" role="status" aria-live="polite"><h2 id="results-title">All shortcuts</h2><span class="results-count" id="results-count">{{.Count}} shortcut{{if ne .Count 1}}s{{end}}</span></div>
 </div>
 <div class="cards" id="shortcuts">
-{{- range .Rows}}
-<a class="shortcut-card" href="{{.Href}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}{{if or .Calls .Callers}} data-connected{{end}}{{if .Missing}} data-missing{{end}}>
-<div class="card-top"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}" title="{{.ColorText}}">{{template "icon-layers"}}</span>{{with .MinimumOS}}<span class="category">iOS {{.}}</span>{{end}}</div>
+{{- range .Rows}}{{$row := .}}
+<a class="shortcut-card{{if .Inactive}} inactive{{end}}" href="{{.Href}}" data-actions="{{.ActionCount}}" data-modified="{{.ModifiedSort}}"{{if .Flagged}} data-flagged{{end}}{{if .Connected}} data-connected{{end}}{{if .Linked}} data-linked{{end}}{{if .Missing}} data-missing{{end}}{{if .Inactive}} data-deleted{{end}}>
+<div class="card-top"><span class="shortcut-icon{{if .DarkIcon}} dark-icon{{end}}" style="--icon: {{.Color}}" title="{{.ColorText}}">{{template "icon-layers"}}</span>{{if .Inactive}}<span class="deleted-badge">{{template "icon-trash"}} Deleted</span>{{else}}{{with .MinimumOS}}<span class="category">iOS {{.}}</span>{{end}}{{end}}</div>
 <h3>{{.Name}}</h3>
-<div class="card-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .ModifiedDate}}<span>Modified {{.}}</span>{{end}}<span class="card-links">{{if .Calls}}{{template "icon-link"}} {{.Calls}} call{{if ne .Calls 1}}s{{end}}{{else if .Callers}}{{template "icon-graph"}} {{.Callers}} caller{{if ne .Callers 1}}s{{end}}{{else}}Standalone{{end}}</span></div>
+{{- with .Inactive}}
+<span class="card-status"><span class="card-status-label">Deleted · </span>{{.}}</span>
+{{- end}}
+<div class="card-meta"><span>{{.ActionCount}} action{{if ne .ActionCount 1}}s{{end}}</span>{{with .ModifiedDate}}<span>Modified {{.}}</span>{{end}}<span class="card-links">{{if .Calls}}{{template "icon-link"}} {{.Calls}} call{{if ne .Calls 1}}s{{end}}{{else if .Callers}}{{template "icon-graph"}} {{.Callers}} caller{{if ne .Callers 1}}s{{end}}{{else if not .DeletedLinks}}Standalone{{end}}{{with .DeletedLinks}}<span class="card-deleted-links">{{if or $row.Calls $row.Callers}}+{{.}} deleted{{else}}{{template "icon-trash"}} {{.}} deleted link{{if ne . 1}}s{{end}}{{end}}</span>{{end}}</span></div>
 {{- if .Flagged}}
 <span class="card-warning">{{template "icon-warning"}} Flagged in the review</span>
 {{- end}}

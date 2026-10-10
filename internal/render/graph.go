@@ -16,6 +16,7 @@ type focusLink struct {
 	DarkIcon bool
 	Kind     string
 	Note     string
+	Inactive bool
 }
 
 type focusRow struct {
@@ -33,38 +34,56 @@ type focusRow struct {
 	CallerCount int
 	RunCount    int
 	Missing     int
+	Inactive    string
+	NameOrder   int
 }
 
 func (r focusRow) total() int { return r.CallerCount + r.RunCount }
 
 type mapPage struct {
-	Title      string
-	Stylesheet string
-	Chrome     chrome
-	Home       string
-	Connected  int
-	Standalone int
-	Missing    int
-	Dynamic    int
-	Rows       []focusRow
+	Title         string
+	Stylesheet    string
+	Chrome        chrome
+	Home          string
+	Connected     int
+	Standalone    int
+	StandaloneAll int
+	Missing       int
+	Dynamic       int
+	Deleted       int
+	Rows          []focusRow
 }
 
 func (g *siteGraph) mapPage(href func(slug string) string) mapPage {
 	page := mapPage{}
 	for i := range g.entries {
+		if !g.connected(i) {
+			page.StandaloneAll++
+		} else {
+			page.Rows = append(page.Rows, g.focusRow(i, href))
+		}
+		if g.inactive[i] {
+			page.Deleted++
+			continue
+		}
 		page.Missing += g.missing(i)
 		for _, c := range g.calls[i] {
 			if c.Status == callDynamic {
 				page.Dynamic++
 			}
 		}
-		if !g.connected(i) {
+		if g.activeConnected(i) {
+			page.Connected++
+		} else {
 			page.Standalone++
-			continue
 		}
-		page.Rows = append(page.Rows, g.focusRow(i, href))
 	}
-	page.Connected = len(page.Rows)
+	sort.SliceStable(page.Rows, func(a, b int) bool {
+		return lessName(page.Rows[a].Name, page.Rows[a].Key, page.Rows[b].Name, page.Rows[b].Key)
+	})
+	for i := range page.Rows {
+		page.Rows[i].NameOrder = i
+	}
 	sort.SliceStable(page.Rows, func(a, b int) bool {
 		left, right := page.Rows[a], page.Rows[b]
 		if left.total() != right.total() {
@@ -90,6 +109,7 @@ func (g *siteGraph) focusRow(i int, href func(slug string) string) focusRow {
 		DarkIcon: isDarkColor(color),
 		Actions:  len(w.Actions),
 		Missing:  g.missing(i),
+		Inactive: statusReason(w),
 	}
 	seen := map[string]bool{}
 	for _, c := range g.calls[i] {
@@ -139,6 +159,7 @@ func (g *siteGraph) focusShortcut(i int, href func(slug string) string) focusLin
 		Color:    template.CSS(color),
 		DarkIcon: isDarkColor(color),
 		Kind:     "shortcut",
+		Inactive: g.inactive[i],
 	}
 }
 
