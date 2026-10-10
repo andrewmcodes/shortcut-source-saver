@@ -8,6 +8,7 @@ import (
 
 	"github.com/andrewmcodes/shortcut-source-saver/internal/archive"
 	"github.com/andrewmcodes/shortcut-source-saver/internal/catalog"
+	"github.com/andrewmcodes/shortcut-source-saver/internal/shortcuts"
 )
 
 const (
@@ -179,30 +180,53 @@ type relation struct {
 	Kind     string
 	Detail   string
 	Actions  []int
+	Inactive string
 }
 
 type runLink struct {
 	call
 	Href       string
 	TargetName string
+	Inactive   string
 }
 
 type pageDeps struct {
-	links    map[int]runLink
-	Runs     []relation
-	CalledBy []relation
-	MapHref  string
+	links           map[int]runLink
+	Runs            []relation
+	RunsDeleted     []relation
+	CalledBy        []relation
+	CalledByDeleted []relation
+	MapHref         string
 }
 
 type siteGraph struct {
-	entries []Entry
-	slugs   []string
-	calls   [][]call
-	callers [][]int
+	entries  []Entry
+	slugs    []string
+	calls    [][]call
+	callers  [][]int
+	inactive []bool
+}
+
+func isInactive(w *shortcuts.Workflow) bool { return w.Status != shortcuts.StatusActive }
+
+func statusReason(w *shortcuts.Workflow) string {
+	switch {
+	case w.Status == shortcuts.StatusActive:
+		return ""
+	case w.Status == shortcuts.StatusConflict && w.ConflictOf.Name != "":
+		return "Sync-conflict copy of " + w.ConflictOf.Name
+	case w.Status == shortcuts.StatusConflict:
+		return "Sync-conflict copy"
+	default:
+		return "Deleted from your library"
+	}
 }
 
 func newSiteGraph(entries []Entry, slugs []string) *siteGraph {
-	g := &siteGraph{entries: entries, slugs: slugs, calls: resolveCalls(entries), callers: make([][]int, len(entries))}
+	g := &siteGraph{entries: entries, slugs: slugs, calls: resolveCalls(entries), callers: make([][]int, len(entries)), inactive: make([]bool, len(entries))}
+	for i, entry := range entries {
+		g.inactive[i] = isInactive(entry.Workflow)
+	}
 	for i, calls := range g.calls {
 		seen := map[int]bool{}
 		for _, c := range calls {
@@ -219,12 +243,76 @@ func (g *siteGraph) connected(i int) bool {
 	return len(g.calls[i]) > 0 || len(g.callers[i]) > 0
 }
 
+func (g *siteGraph) toInactive(c call) bool { return c.resolved() && g.inactive[c.Target] }
+
+func (g *siteGraph) activeConnected(i int) bool {
+	for _, c := range g.calls[i] {
+		if !g.toInactive(c) {
+			return true
+		}
+	}
+	for _, caller := range g.callers[i] {
+		if !g.inactive[caller] {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *siteGraph) outgoing(i int) int {
 	keys := map[string]bool{}
 	for _, c := range g.calls[i] {
-		keys[relationKey(c)] = true
+		if !g.toInactive(c) {
+			keys[relationKey(c)] = true
+		}
 	}
 	return len(keys)
+}
+
+func (g *siteGraph) activeCallers(i int) int {
+	n := 0
+	for _, caller := range g.callers[i] {
+		if caller != i && !g.inactive[caller] {
+			n++
+		}
+	}
+	return n
+}
+
+func (g *siteGraph) inactiveNeighbours(i int) int {
+	seen := map[int]bool{}
+	for _, c := range g.calls[i] {
+		if g.toInactive(c) && c.Target != i {
+			seen[c.Target] = true
+		}
+	}
+	for _, caller := range g.callers[i] {
+		if caller != i && g.inactive[caller] {
+			seen[caller] = true
+		}
+	}
+	return len(seen)
+}
+
+func (g *siteGraph) original(i int, href func(slug string) string) (string, bool) {
+	origin := g.entries[i].Workflow.ConflictOf
+	id := strings.ToUpper(strings.TrimSpace(origin.WorkflowID))
+	if id == "" {
+		return "", false
+	}
+	var matches []int
+	for j, entry := range g.entries {
+		if j != i && strings.ToUpper(strings.TrimSpace(entry.Workflow.WorkflowID)) == id {
+			matches = append(matches, j)
+		}
+	}
+	if len(matches) > 1 {
+		matches = withName(matches, g.entries, origin.Name)
+	}
+	if len(matches) != 1 {
+		return "", false
+	}
+	return href(g.slugs[matches[0]]), true
 }
 
 func (g *siteGraph) missing(i int) int {
@@ -262,6 +350,9 @@ func (g *siteGraph) pageDeps(i int, href func(slug string) string, mapHref strin
 		if c.Target >= 0 {
 			link.Href = href(g.slugs[c.Target])
 			link.TargetName = g.entries[c.Target].Workflow.Name
+			if c.resolved() {
+				link.Inactive = statusReason(g.entries[c.Target].Workflow)
+			}
 		}
 		deps.links[c.Action] = link
 		key := relationKey(c)
@@ -274,15 +365,25 @@ func (g *siteGraph) pageDeps(i int, href func(slug string) string, mapHref strin
 		group.Actions = append(group.Actions, c.Action)
 	}
 	for _, key := range order {
-		deps.Runs = append(deps.Runs, *groups[key])
+		if groups[key].Inactive != "" {
+			deps.RunsDeleted = append(deps.RunsDeleted, *groups[key])
+		} else {
+			deps.Runs = append(deps.Runs, *groups[key])
+		}
 	}
 	for _, caller := range g.callers[i] {
 		if caller == i {
 			continue
 		}
-		deps.CalledBy = append(deps.CalledBy, g.shortcutRelation(caller, href, "", ""))
+		r := g.shortcutRelation(caller, href, "", "")
+		if r.Inactive != "" {
+			deps.CalledByDeleted = append(deps.CalledByDeleted, r)
+		} else {
+			deps.CalledBy = append(deps.CalledBy, r)
+		}
 	}
 	sortRelations(deps.CalledBy)
+	sortRelations(deps.CalledByDeleted)
 	return deps
 }
 
@@ -331,6 +432,7 @@ func (g *siteGraph) shortcutRelation(i int, href func(slug string) string, note,
 		Note:     note,
 		Detail:   detail,
 		Kind:     "shortcut",
+		Inactive: statusReason(g.entries[i].Workflow),
 	}
 }
 
@@ -374,6 +476,10 @@ func (r *reviewer) applyRunTarget(act catalog.Action, params map[string]any, sub
 		if link.TargetName != name {
 			detail = append(detail, text(" · now named "))
 			detail = append(detail, visibleText(link.TargetName)...)
+		}
+		if link.Inactive != "" {
+			detail = append(detail, text(" · Deleted: "))
+			detail = append(detail, visibleText(link.Inactive)...)
 		}
 	case callSelf:
 		title = visibleText(name)

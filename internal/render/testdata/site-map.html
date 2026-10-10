@@ -45,6 +45,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	const title = document.getElementById('focus-title');
 	const count = document.getElementById('rank-count');
 	const empty = document.getElementById('rank-empty');
+	const toggle = document.getElementById('show-deleted');
+	const footnote = document.getElementById('rank-footnote');
+	const focusCard = document.getElementById('focus-card');
 	const columns = {callers: document.getElementById('focus-callers'), runs: document.getElementById('focus-runs')};
 	const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 	const svg = 'http://www.w3.org/2000/svg';
@@ -52,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	let matches = [];
 	let active = -1;
 	let moveFocus = false;
+	let listed = [];
 
 	const plural = function (n, noun) { return n + ' ' + noun + (n === 1 ? '' : 's'); };
 	const hashFor = function (key) { return '#map-' + encodeURIComponent(key); };
@@ -67,11 +71,19 @@ document.addEventListener('DOMContentLoaded', function () {
 		return glyphs.querySelector('[data-glyph="' + name + '"]').firstElementChild.cloneNode(true);
 	}
 
-	function label(node) {
+	function label(node, plain) {
 		const text = el('span', 'focus-text');
-		text.append(el('strong', '', node.name), el('small', '', node.meta));
+		const meta = el('small', '', node.meta);
+		if (node.inactive && !plain) {
+			const badge = el('span', 'deleted-badge');
+			badge.append(glyph('deleted'), document.createTextNode('Deleted'));
+			meta.prepend(badge, ' ');
+		}
+		text.append(el('strong', '', node.name), meta);
 		return text;
 	}
+
+	function shown(entry) { return toggle.checked || !entry.inactive; }
 
 	for (const row of rows) {
 		const link = row.querySelector('.rank-link');
@@ -79,20 +91,29 @@ document.addEventListener('DOMContentLoaded', function () {
 			key: row.dataset.key,
 			rank: rows.indexOf(row),
 			name: row.querySelector('.rank-text strong').textContent,
+			order: Number(row.dataset.order),
 			href: link.getAttribute('href'),
 			tile: row.querySelector('.shortcut-icon'),
 			meta: row.querySelector('.rank-meta').textContent,
+			metaText: row.querySelector('.rank-meta'),
+			number: row.querySelector('.rank-number'),
 			warning: row.querySelector('.rank-warning'),
+			reason: row.querySelector('.rank-reason'),
+			inactive: row.hasAttribute('data-inactive'),
 			row: row,
 			link: link,
 			callers: [],
 			runs: [],
+			shownCallers: [],
+			shownRuns: [],
+			total: 0,
+			listed: true,
 			self: false
 		};
 		for (const item of row.querySelectorAll('[data-relation]')) {
 			if (item.dataset.kind === 'self') { node.self = true; continue; }
 			const name = item.querySelector('.relation-name');
-			node[item.dataset.relation].push({key: item.dataset.key || '', kind: item.dataset.kind || 'shortcut', name: name ? name.textContent : '', note: item.dataset.note || ''});
+			node[item.dataset.relation].push({key: item.dataset.key || '', kind: item.dataset.kind || 'shortcut', name: name ? name.textContent : '', note: item.dataset.note || '', inactive: item.hasAttribute('data-inactive')});
 		}
 		graph.set(node.key, node);
 		link.href = hashFor(node.key);
@@ -104,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	function card(entry) {
 		const target = entry.key ? graph.get(entry.key) : null;
 		if (target) {
-			const link = el('a', 'focus-node');
+			const link = el('a', 'focus-node' + (target.inactive ? ' inactive' : ''));
 			link.href = hashFor(target.key);
 			link.append(target.tile.cloneNode(true), label(target));
 			return link;
@@ -125,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			const item = el('li', index >= limit ? 'focus-more' : '');
 			const node = card(entry);
 			node.dataset.edge = side + '-' + index;
-			if (!entry.key) { node.dataset.kind = entry.kind; }
+			if (!entry.key) { node.dataset.kind = entry.kind; } else if (entry.inactive) { node.dataset.kind = 'inactive'; }
 			item.append(node);
 			target.append(item);
 		});
@@ -190,17 +211,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function focusOn(node) {
 		centre.replaceChildren();
-		const main = el('a', 'focus-node focus-current');
+		const main = el('a', 'focus-node focus-current' + (node.inactive ? ' inactive' : ''));
 		main.id = 'focus-current';
 		main.href = node.href;
 		const open = el('span', 'focus-open', 'Open shortcut');
 		open.append(glyph('chevron'));
-		main.append(node.tile.cloneNode(true), label(node), open);
+		main.append(node.tile.cloneNode(true), label(node, true), open);
 		centre.append(main);
 		const badges = el('div', 'focus-badges');
 		if (node.self) {
 			const badge = el('span', 'focus-badge');
 			badge.append(glyph('repeat'), document.createTextNode('Runs itself'));
+			badges.append(badge);
+		}
+		if (node.reason) {
+			const badge = el('span', 'focus-badge deleted');
+			badge.append(glyph('deleted'), document.createTextNode('Deleted: ' + node.reason.textContent));
 			badges.append(badge);
 		}
 		if (node.warning) {
@@ -209,15 +235,15 @@ document.addEventListener('DOMContentLoaded', function () {
 			badges.append(badge);
 		}
 		if (badges.childElementCount) { centre.append(badges); }
-		fill('callers', node.callers);
-		fill('runs', node.runs);
+		fill('callers', node.shownCallers);
+		fill('runs', node.shownRuns);
 		for (const other of nodes) {
 			const current = other === node;
 			other.row.classList.toggle('current', current);
 			if (current) { other.link.setAttribute('aria-current', 'true'); } else { other.link.removeAttribute('aria-current'); }
 		}
 		title.textContent = 'Connections of ' + node.name;
-		status.textContent = node.name + ': ' + node.meta;
+		status.textContent = node.name + ': ' + (node.inactive ? 'deleted, ' : '') + node.meta;
 		drawEdges();
 	}
 
@@ -236,7 +262,14 @@ document.addEventListener('DOMContentLoaded', function () {
 	function fromHash() {
 		const moved = moveFocus;
 		moveFocus = false;
-		focusOn(graph.get(keyFromHash()) || nodes[0]);
+		const wanted = graph.get(keyFromHash());
+		if (wanted && !wanted.listed && !toggle.checked) {
+			toggle.checked = true;
+			scope();
+		}
+		const node = wanted && wanted.listed ? wanted : listed[0];
+		if (!node) { return; }
+		focusOn(node);
 		if (moved) {
 			const main = document.getElementById('focus-current');
 			main.focus({preventScroll: true});
@@ -267,11 +300,44 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (open && active >= 0) { search.setAttribute('aria-activedescendant', 'focus-option-' + active); } else { search.removeAttribute('aria-activedescendant'); }
 	}
 
+	function scope() {
+		for (const node of nodes) {
+			node.shownCallers = node.callers.filter(shown);
+			node.shownRuns = node.runs.filter(shown);
+			node.meta = plural(node.shownCallers.length, 'caller') + ' · ' + plural(node.shownRuns.length, 'run') + (node.self ? ' · runs itself' : '');
+			node.metaText.textContent = node.meta;
+			node.total = node.shownCallers.length + node.shownRuns.length;
+			node.listed = shown(node) && (node.total > 0 || node.self);
+		}
+		listed = nodes.filter(function (node) { return node.listed; }).sort(function (a, b) { return b.total - a.total || a.order - b.order; });
+		listed.forEach(function (node, index) {
+			node.rank = index;
+			node.number.textContent = index + 1;
+			list.append(node.row);
+		});
+		for (const node of nodes) {
+			if (!node.listed) { list.append(node.row); }
+		}
+		focusCard.hidden = listed.length === 0;
+		if (footnote) {
+			const standalone = Number(toggle.checked ? footnote.dataset.all : footnote.dataset.active);
+			footnote.hidden = standalone === 0;
+			footnote.querySelector('.footnote-text').textContent = standalone === 1 ? '1 standalone shortcut neither runs nor is run by another, so it is not listed.' : standalone + ' standalone shortcuts neither run nor are run by another, so they are not listed.';
+		}
+		filter();
+	}
+
+	function storeDeleted() {
+		try {
+			if (toggle.checked) { localStorage.setItem('sss-show-deleted', '1'); } else { localStorage.removeItem('sss-show-deleted'); }
+		} catch (error) {}
+	}
+
 	function filter() {
 		const query = search.value.trim().toLowerCase();
-		const hits = nodes.filter(function (node) { return node.name.toLowerCase().includes(query); });
+		const hits = listed.filter(function (node) { return node.name.toLowerCase().includes(query); });
 		for (const node of nodes) { node.row.hidden = !hits.includes(node); }
-		count.textContent = query ? hits.length + ' of ' + plural(nodes.length, 'shortcut') : plural(nodes.length, 'shortcut');
+		count.textContent = query ? hits.length + ' of ' + plural(listed.length, 'shortcut') : plural(listed.length, 'shortcut');
 		empty.hidden = hits.length > 0;
 		const starts = function (node) { return node.name.toLowerCase().startsWith(query) ? 0 : 1; };
 		matches = query && document.activeElement === search ? hits.slice().sort(function (a, b) { return starts(a) - starts(b) || a.rank - b.rank; }).slice(0, 8) : [];
@@ -333,15 +399,22 @@ document.addEventListener('DOMContentLoaded', function () {
 			drawEdges();
 		});
 	}
+	toggle.addEventListener('change', function () {
+		storeDeleted();
+		scope();
+		const current = graph.get(keyFromHash());
+		if (current && !current.listed) { history.replaceState(null, '', window.location.pathname + window.location.search); }
+		fromHash();
+	});
 	board.addEventListener('pointerover', light);
 	board.addEventListener('pointerleave', light);
 	board.addEventListener('focusin', light);
 	window.addEventListener('hashchange', fromHash);
 	new ResizeObserver(drawEdges).observe(board);
+	try { toggle.checked = localStorage.getItem('sss-show-deleted') === '1'; } catch (error) {}
 	document.getElementById('focus-tools').hidden = false;
-	document.getElementById('focus-card').hidden = false;
 	list.classList.add('interactive');
-	filter();
+	scope();
 	fromHash();
 });
 </script>
@@ -363,6 +436,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5"></path></svg><span class="sr-only">Find a connected shortcut</span><input id="focus-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="focus-options" placeholder="Find a connected shortcut" autocomplete="off" spellcheck="false"><kbd aria-hidden="true">/</kbd></label>
 <ul class="focus-options" id="focus-options" role="listbox" aria-label="Matching shortcuts" hidden></ul>
 </div>
+<label class="toggle" hidden><input type="checkbox" id="show-deleted" autocomplete="off"><span>Show deleted shortcuts</span><span class="toggle-count">0</span></label>
 <div class="graph-legend" aria-hidden="true"><span><i class="legend-line"></i>Runs</span><span><i class="legend-line missing"></i>Missing</span><span><i class="legend-line dynamic"></i>Chosen at run time</span></div>
 </div>
 <section class="focus-card" id="focus-card" aria-labelledby="focus-title" hidden>
@@ -377,12 +451,12 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 </section>
 <p class="sr-only" id="focus-status" role="status" aria-live="polite"></p>
-<template id="focus-glyphs"><span data-glyph="missing"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg></span><span data-glyph="dynamic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l10 10h4M3 17h4l3-3m4-4 3-3h4m-3-3 3 3-3 3m0 4 3 3-3 3"></path></svg></span><span data-glyph="repeat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4m14-5v1a4 4 0 0 1-4 4H3"></path></svg></span><span data-glyph="chevron"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"></path></svg></span></template>
+<template id="focus-glyphs"><span data-glyph="missing"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg></span><span data-glyph="dynamic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l10 10h4M3 17h4l3-3m4-4 3-3h4m-3-3 3 3-3 3m0 4 3 3-3 3"></path></svg></span><span data-glyph="repeat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4m14-5v1a4 4 0 0 1-4 4H3"></path></svg></span><span data-glyph="chevron"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"></path></svg></span><span data-glyph="deleted"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></span></template>
 <section class="rank-section" aria-labelledby="rank-heading">
 <div class="section-heading rank-heading"><h2 id="rank-heading">Most connected</h2><span id="rank-count" role="status" aria-live="polite">3 shortcuts</span></div>
 <p class="rank-intro">Ranked by how many shortcuts run each one plus how many it runs.</p>
 <ol class="rank-list" id="rank-list">
-<li class="rank-row" id="map-caller" data-key="caller">
+<li class="rank-row" id="map-caller" data-key="caller" data-order="0">
 <a class="rank-link" href="shortcuts/caller.html"><span class="rank-number">1</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Caller</strong><small class="rank-meta">0 callers · 4 runs · runs itself</small><small class="rank-warning"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"></path></svg> 1 missing reference</small></span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">
@@ -391,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 </details>
 </li>
-<li class="rank-row" id="map-helper" data-key="helper">
+<li class="rank-row" id="map-helper" data-key="helper" data-order="1">
 <a class="rank-link" href="shortcuts/helper.html"><span class="rank-number">2</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Helper</strong><small class="rank-meta">1 caller · 1 run</small></span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">
@@ -400,7 +474,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 </details>
 </li>
-<li class="rank-row" id="map-utility" data-key="utility">
+<li class="rank-row" id="map-utility" data-key="utility" data-order="2">
 <a class="rank-link" href="shortcuts/utility.html"><span class="rank-number">3</span><span class="shortcut-icon" style="--icon: #4F9BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"></path></svg></span><span class="rank-text"><strong>Utility</strong><small class="rank-meta">2 callers · 0 runs</small></span></a>
 <details class="rank-details"><summary>Callers and runs</summary>
 <div class="rank-relations">

@@ -124,6 +124,8 @@ A conflict copy backed up for the first time is not a change; existing backups o
 - `entry.Workflow.Status` is a `shortcuts.Status`: `StatusActive` (`""`), `StatusConflict` or `StatusDeleted`.
 - `entry.Workflow.ConflictOf` is a `shortcuts.Original{WorkflowID, Name}`, the zero value when there is none. The original's own entry, when it is in the destination, is the one whose `Workflow.WorkflowID` matches.
 
+How the site marks, hides and separates these shortcuts is in [rendering.md](rendering.md#deleted-shortcuts).
+
 ## Signed file names carry the shortcut's name
 
 The `.shortcut` file is named after the shortcut, not a fixed `shortcut.shortcut`. This is not cosmetic: **the plist contains no name field**, so Shortcuts derives the imported shortcut's name from the filename. A fixed filename would import every shortcut as "shortcut".

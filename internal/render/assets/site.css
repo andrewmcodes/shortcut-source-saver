@@ -152,6 +152,46 @@ main {
 }
 .page-heading h1 { font-size: 28px; line-height: 1.2; font-weight: 650; letter-spacing: -0.7px; }
 
+.deleted-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 8px 1px 6px;
+	border: 1px solid var(--ruby-6);
+	border-radius: 20px;
+	background: var(--ruby-3);
+	color: var(--danger);
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.5;
+	white-space: nowrap;
+}
+.deleted-badge svg { width: 12px; height: 12px; }
+
+.inline-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	font-size: 14px;
+	color: var(--text);
+	white-space: nowrap;
+	cursor: pointer;
+}
+.toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--solid); cursor: pointer; }
+.toggle-count {
+	min-width: 22px;
+	padding: 0 7px;
+	border-radius: 10px;
+	background: var(--side);
+	font-size: 12px;
+	text-align: center;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
 .badge {
 	font-size: 12px;
 	white-space: nowrap;
@@ -186,7 +226,8 @@ main {
 
 .stats {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-auto-flow: column;
+	grid-auto-columns: minmax(0, 1fr);
 	margin-top: 12px;
 	padding: 10px 0;
 }
@@ -205,10 +246,11 @@ main {
 }
 .stats span { font-size: 12px; color: var(--muted); }
 .warning-dot { display: flex; color: var(--warning); }
+.stats-note { font-size: 12px; color: var(--muted); }
 
 .library-toolbar {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(150px, 210px) minmax(150px, 210px);
+	grid-template-columns: minmax(0, 1fr) minmax(150px, 210px) minmax(150px, 210px) auto;
 	gap: 12px;
 	margin-bottom: 14px;
 }
@@ -360,6 +402,19 @@ kbd {
 }
 
 .card-links { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.card-deleted-links { display: inline-flex; align-items: center; gap: 4px; }
+.card-links > .card-deleted-links:not(:first-child) { margin-left: 2px; }
+.card-deleted-links svg { width: 13px; height: 13px; }
+
+.card-status { margin: -4px 0 8px; font-size: 12px; color: var(--danger); overflow-wrap: anywhere; }
+.card-status-label { display: none; font-weight: 600; }
+.shortcut-card.inactive { border-style: dashed; background: var(--bg); }
+.shortcut-card.inactive h3 { color: var(--muted); }
+.shortcut-card.inactive .shortcut-icon,
+.detail-heading.inactive .shortcut-icon,
+.related.inactive .shortcut-icon,
+.rank-row.inactive .shortcut-icon,
+.focus-node.inactive .shortcut-icon { opacity: 0.55; }
 
 .library-footer {
 	display: flex;
@@ -518,6 +573,22 @@ kbd {
 }
 .notice > svg { margin-top: 2px; color: var(--warning); }
 
+.status-banner {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	margin-bottom: 26px;
+	padding: 12px 15px;
+	border: 1px solid var(--ruby-6);
+	border-radius: 9px;
+	background: var(--ruby-2);
+	font-size: 14px;
+	line-height: 1.6;
+}
+.status-banner > svg { width: 17px; height: 17px; margin-top: 3px; color: var(--danger); }
+.status-banner strong { color: var(--danger); }
+.status-banner .text-link { display: inline; min-height: 0; font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
 .relations { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--indigo-6); }
 .relations h3 { margin: 0 0 4px; font-size: 15px; font-weight: 650; letter-spacing: -0.2px; }
 .relations h3 span { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--muted); }
@@ -548,6 +619,9 @@ kbd {
 .related-missing strong,
 .related-missing .related-glyph { color: var(--warning); }
 .related-missing .related-glyph { background: var(--warning-bg); }
+.relations-deleted h3 { color: var(--muted); }
+.related.inactive strong { color: var(--muted); }
+.related .related-status { color: var(--danger); }
 .related-steps { margin-top: 4px; padding-left: 42px; font-size: 12px; color: var(--muted); }
 .related-steps .magic { color: var(--accent); }
 
@@ -663,6 +737,7 @@ a.focus-node:hover { color: var(--text); border-color: var(--indigo-8); backgrou
 .focus-text { display: flex; flex-direction: column; min-width: 0; }
 .focus-text strong { font-size: 14px; font-weight: 550; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .focus-text small { font-size: 12px; line-height: 1.4; color: var(--muted); }
+.focus-text .deleted-badge { padding: 0 6px 0 4px; font-size: 10.5px; vertical-align: 1px; }
 .focus-glyph {
 	width: 36px;
 	height: 36px;
@@ -677,6 +752,9 @@ a.focus-node:hover { color: var(--text); border-color: var(--indigo-8); backgrou
 .focus-node.missing .focus-glyph { background: var(--amber-4); color: var(--warning); }
 .focus-node.missing strong { color: var(--warning); }
 .focus-node.dynamic { border: 1.5px dotted var(--slate-9); background: var(--surface); }
+.focus-node.inactive { border-style: dashed; background: var(--surface); }
+.focus-node.inactive strong { color: var(--muted); }
+.focus-edges .edge.inactive { stroke-dasharray: 3 4; opacity: 0.4; }
 
 .focus-current {
 	display: grid;
@@ -717,6 +795,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 }
 .focus-badge svg { width: 14px; height: 14px; }
 .focus-badge.warning { background: var(--warning-bg); color: var(--warning); }
+.focus-badge.deleted { background: var(--ruby-3); color: var(--danger); }
 
 .rank-heading { padding-bottom: 2px; }
 .rank-heading > span { font-variant-numeric: tabular-nums; }
@@ -742,6 +821,9 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 .rank-meta { font-size: 12px; color: var(--muted); }
 .rank-warning { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--warning); }
 .rank-warning svg { width: 13px; height: 13px; }
+.rank-row.inactive { border-style: dashed; background: var(--bg); }
+.rank-row.inactive .rank-text strong { color: var(--muted); }
+.rank-status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 2px 0; font-size: 12px; color: var(--danger); }
 .rank-row.current { border-color: var(--indigo-8); background: var(--accent-bg); }
 .rank-row.current .rank-link:hover { background: transparent; }
 .rank-row.current .rank-number { color: var(--accent); font-weight: 650; }
@@ -753,6 +835,7 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 .rank-relations a { color: var(--accent); }
 .rank-relations small { color: var(--muted); }
 .relation-missing .relation-name { color: var(--warning); }
+.rank-relations .relation-deleted { color: var(--danger); }
 .rank-footnote { margin-top: 18px; font-size: 13px; color: var(--muted); }
 .rank-footnote .text-link { min-height: 0; }
 
@@ -826,7 +909,9 @@ a.focus-current:hover .focus-open { text-decoration: underline; text-underline-o
 	.shortcut-card:last-child { border-bottom: 0; }
 	.shortcut-card:hover { transform: none; box-shadow: none; background: var(--side); }
 	.card-top { grid-row: 1 / 4; align-self: start; margin: 1px 0 0; display: block; }
-	.card-top .category { display: none; }
+	.card-top .category, .card-top .deleted-badge { display: none; }
+	.card-status { grid-column: 2; margin: 0; }
+	.card-status-label { display: inline; }
 	.shortcut-card .shortcut-icon { width: 40px; height: 40px; border-radius: 11px; }
 	.shortcut-card .shortcut-icon svg { width: 21px; height: 21px; }
 	.shortcut-card h3 { grid-column: 2; margin: 0; font-size: 16px; font-weight: 550; line-height: 1.4; letter-spacing: -0.15px; }
