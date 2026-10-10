@@ -45,13 +45,14 @@ func ShortcutBackupMessage(names ...string) CommitMessage {
 }
 
 type StatusChanges struct {
+	Renamed   []string
 	Deleted   []string
 	Restored  []string
 	Conflicts []string
 }
 
 func (c StatusChanges) empty() bool {
-	return len(sortedNames(c.Deleted))+len(sortedNames(c.Restored))+len(sortedNames(c.Conflicts)) == 0
+	return len(sortedNames(c.Renamed))+len(sortedNames(c.Deleted))+len(sortedNames(c.Restored))+len(sortedNames(c.Conflicts)) == 0
 }
 
 func BackupMessage(backedUp []string, changes StatusChanges) CommitMessage {
@@ -71,6 +72,7 @@ func BackupMessage(backedUp []string, changes StatusChanges) CommitMessage {
 		heading string
 		names   []string
 	}{
+		{"Renamed:", changes.Renamed},
 		{"Marked deleted (no longer in the library):", changes.Deleted},
 		{"Restored (back in the library):", changes.Restored},
 		{"Marked as sync-conflict copies:", changes.Conflicts},

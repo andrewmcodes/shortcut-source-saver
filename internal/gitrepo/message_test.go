@@ -105,6 +105,7 @@ func TestCommitMessageString(t *testing.T) {
 
 func TestBackupMessageListsStatusChanges(t *testing.T) {
 	got := BackupMessage([]string{"Encode URL", "Daily Note"}, StatusChanges{
+		Renamed:   []string{"Foo → Bar"},
 		Deleted:   []string{"Old Helper"},
 		Restored:  []string{"Came Back"},
 		Conflicts: []string{"_Get App from Input"},
@@ -113,6 +114,7 @@ func TestBackupMessageListsStatusChanges(t *testing.T) {
 		t.Errorf("subject = %q", got.Subject)
 	}
 	want := "- Daily Note\n- Encode URL\n\n" +
+		"Renamed:\n- Foo → Bar\n\n" +
 		"Marked deleted (no longer in the library):\n- Old Helper\n\n" +
 		"Restored (back in the library):\n- Came Back\n\n" +
 		"Marked as sync-conflict copies:\n- _Get App from Input"

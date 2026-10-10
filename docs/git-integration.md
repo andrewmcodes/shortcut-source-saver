@@ -59,7 +59,9 @@ Only the generated site changed:
 chore(site): rebuild web reviews
 ```
 
-`BackupMessage` is what a run uses: it takes the backed-up names plus a `StatusChanges` of shortcuts newly marked deleted, restored, or marked as sync-conflict copies, and appends one titled bullet section per non-empty group after the name list. With no status changes it is exactly `ShortcutBackupMessage`; with only status changes the subject is `chore(shortcuts): update shortcut status`. The example and the meaning of each status are in [backup.md](backup.md#shortcuts-that-are-no-longer-active).
+`BackupMessage` is what a run uses: it takes the backed-up names plus a `StatusChanges` of shortcuts renamed (`Old Name → New Name`), newly marked deleted, restored, or marked as sync-conflict copies, and appends one titled bullet section per non-empty group after the name list. With no status changes it is exactly `ShortcutBackupMessage`; with only status changes the subject is `chore(shortcuts): update shortcut status`. The example and the meaning of each status are in [backup.md](backup.md#shortcuts-that-are-no-longer-active).
+
+`Repo.Remove` stages paths the run deleted, such as the old directory of a renamed shortcut, with `git rm -r --cached --ignore-unmatch --quiet`. `git add` cannot do this: a pathspec for a directory that no longer exists on disk and was never committed makes it fail, while `--ignore-unmatch` makes untracked or already-unstaged paths a no-op. Removals are staged before additions, so git pairs the old and new files as a rename.
 
 Shortcut names are user-authored and arbitrary — they routinely contain emoji, quotes, and occasionally newlines. The subject line therefore:
 
