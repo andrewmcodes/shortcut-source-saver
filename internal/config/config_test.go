@@ -218,29 +218,11 @@ func TestLoadFile(t *testing.T) {
 			},
 		},
 		{
-			name: "base_url gets both slashes",
-			body: "repo_path = \"/tmp/repo\"\nbase_url = \"my-shortcuts\"\n",
+			name: "retired base_url still loads",
+			body: "repo_path = \"/tmp/repo\"\nbase_url = \"/my-shortcuts/\"\n",
 			check: func(t *testing.T, cfg *Config) {
-				if cfg.BaseURL != "/my-shortcuts/" {
-					t.Errorf("BaseURL = %q, want /my-shortcuts/", cfg.BaseURL)
-				}
-			},
-		},
-		{
-			name: "empty base_url becomes root",
-			body: "repo_path = \"/tmp/repo\"\nbase_url = \"\"\n",
-			check: func(t *testing.T, cfg *Config) {
-				if cfg.BaseURL != "/" {
-					t.Errorf("BaseURL = %q, want /", cfg.BaseURL)
-				}
-			},
-		},
-		{
-			name: "base_url already normalised is untouched",
-			body: "repo_path = \"/tmp/repo\"\nbase_url = \"/nested/path/\"\n",
-			check: func(t *testing.T, cfg *Config) {
-				if cfg.BaseURL != "/nested/path/" {
-					t.Errorf("BaseURL = %q, want /nested/path/", cfg.BaseURL)
+				if cfg.RepoPath != "/tmp/repo" {
+					t.Errorf("RepoPath = %q", cfg.RepoPath)
 				}
 			},
 		},
@@ -333,21 +315,9 @@ func TestExampleIsValid(t *testing.T) {
 	if cfg.AutoPush {
 		t.Error("example config enables auto_push; it should default off")
 	}
-	for _, key := range []string{"repo_path", "sign_mode", "site_dir", "site_title", "base_url", "auto_commit", "auto_push", "include_signed", "include_hidden"} {
+	for _, key := range []string{"repo_path", "sign_mode", "site_dir", "site_title", "auto_commit", "auto_push", "include_signed", "include_hidden"} {
 		if !strings.Contains(Example(), key) {
 			t.Errorf("Example() is missing %q", key)
 		}
-	}
-}
-
-func TestValidateNormalisesInPlace(t *testing.T) {
-	cfg := Default()
-	cfg.RepoPath = "/tmp/repo"
-	cfg.BaseURL = "//sss//"
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v", err)
-	}
-	if cfg.BaseURL != "/sss/" {
-		t.Errorf("BaseURL = %q, want /sss/", cfg.BaseURL)
 	}
 }

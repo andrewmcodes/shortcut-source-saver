@@ -189,7 +189,6 @@ func (s *Service) Backup(ctx context.Context, sc shortcuts.Shortcut) tui.Result 
 
 	readme, err := render.ShortcutREADMEWithOptions(w, render.Options{
 		ExpandAll:    s.opts.ExpandAll,
-		SiteURL:      s.cfg.BaseURL,
 		SiteRoot:     relativeSlashPath(dir, s.cfg.SitePath()),
 		Slug:         filepath.Base(dir),
 		ShortcutFile: signedFileName(sc.Name),
@@ -275,7 +274,6 @@ func (s *Service) BuildSite() ([]string, error) {
 
 	files, err := render.Site(entries, render.SiteOptions{
 		Title:     s.cfg.SiteTitle,
-		BaseURL:   s.cfg.BaseURL,
 		ExpandAll: s.opts.ExpandAll,
 	})
 	if err != nil {

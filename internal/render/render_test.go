@@ -575,7 +575,7 @@ func TestSite(t *testing.T) {
 		{Workflow: all[2].workflow},
 	}
 
-	site, err := Site(entries, SiteOptions{Title: "My Shortcuts", BaseURL: "/shortcut-source-saver"})
+	site, err := Site(entries, SiteOptions{Title: "My Shortcuts"})
 	if err != nil {
 		t.Fatalf("Site: %v", err)
 	}
@@ -604,18 +604,18 @@ func TestSite(t *testing.T) {
 
 	page := string(site["shortcuts/linear-shortcut.html"])
 	for _, link := range []string{
-		`href="/shortcut-source-saver/assets/style.css"`,
-		`href="/shortcut-source-saver/index.html"`,
+		`href="../assets/style.css"`,
+		`href="../index.html"`,
 	} {
 		if !strings.Contains(page, link) {
 			t.Errorf("shortcut page is missing %s", link)
 		}
 	}
-	if !strings.Contains(string(site[IndexPath]), `href="/shortcut-source-saver/shortcuts/linear-shortcut.html"`) {
-		t.Error("index does not link through the base URL")
+	if !strings.Contains(string(site[IndexPath]), `href="shortcuts/linear-shortcut.html"`) {
+		t.Error("index does not link to shortcut pages relatively")
 	}
 
-	again, err := Site(entries, SiteOptions{Title: "My Shortcuts", BaseURL: "/shortcut-source-saver"})
+	again, err := Site(entries, SiteOptions{Title: "My Shortcuts"})
 	if err != nil {
 		t.Fatalf("Site (second run): %v", err)
 	}

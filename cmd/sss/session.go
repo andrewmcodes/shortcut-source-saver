@@ -69,7 +69,6 @@ func useOutputDir(cfg *config.Config, raw string) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	cfg.BaseURL = ""
 	return nil
 }
 
